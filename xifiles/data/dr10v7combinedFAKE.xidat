@@ -1,0 +1,3 @@
+xi2d: xifiles/data/collidedBR-collate-cmass-dr10v7-N-FBBRang_xigrid.butterfly
+wp: xifiles/data/wpNSmean-dr10_fbworkCHK-nofkp-nocp-smallbins-diagerrs.dat.corr.fake, xifiles/data/icov-dr10_fbworkCHK-nofkp-nocp-smallbins.dat.fake
+xiell: xifiles/data/xi02NEWNSdebiaseddr10v7long.txt.fake, xifiles/data/icovtotv7corrwsys_b200_N5000000_rebin-bin1.xiellNEW.txt.fake
