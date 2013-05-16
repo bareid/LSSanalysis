@@ -20,10 +20,11 @@ getnmu = 4
 rebinfac = 200/getnmu
 for mtag in mtaglist:
   ffmt="/Users/bareid/work/montserratdata/forlilev3/A%02d_0.6452.halos.zspace%d.Np.nbins9000.bin1sims_"+mtag
+  print 'gaaa',mtag
   ## tmp input.
-  xx=xismu.initavg(ffmt,zspacelist=[0,1,2],simlist=[0,2,3,4,5])
+  #xx=xismu.initavg(ffmt,zspacelist=[0,1,2],simlist=[0,2,3,4,5])
   ## final input.
-  #xx=initavg(ffmt,[0,1,2],np.arange(0,20,1))
+  xx=xismu.initavg(ffmt,[0,1,2],np.arange(0,20,1))
   ##rebin by a factor of rebinfac
   xilist.append(xx.rebin(1,rebinfac))
   outfname='avgmbin%ddown.smuxi' % (cnt+1)
