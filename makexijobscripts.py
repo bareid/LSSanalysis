@@ -17,7 +17,7 @@ def riemannheader(ofp,jobname,jobtime='12:00:00',ppn=1,fastqopt=0):
   ofp.write('cd $PBS_O_WORKDIR\n')
 
 def nerscheader(ofp,jobname,jobtime='23:59:59',mppwidth=24,qname='thruput'):
-  ofp.write('#PBS -q %w\n' % (qname))
+  ofp.write('#PBS -q %s\n' % (qname))
   ofp.write('#PBS -l mppwidth=%d\n' % (mppwidth))
   ofp.write('#PBS -l walltime=%s\n' % (jobtime))
   ofp.write('#PBS -j eo\n')
@@ -40,6 +40,7 @@ if __name__ == '__main__':
     print 'task = 0: DD, DR, RR counts needed for angular weight calculation'
     print 'task = 1: convert D/R counts to angweight and copy it over to other directories that need it'
     print 'task = 2: do xiell counts.'
+    print 'task = 3: do wp counts.'
     sys.exit(1)
 
   fastqopt = 0
@@ -165,9 +166,9 @@ if __name__ == '__main__':
     if(whichmachine == 0):
       ofpsh.write('#!/bin/bash\n')
     if(whichmachine == 1):
-      riemannheader(ofpsh,jj['name'],jobtime=jj[jobtimeRR], ppn=jj['nprocRR'], fastqopt=fastqopt)
+      riemannheader(ofpsh,jj['name'],jobtime=jj['jobtimeRR'], ppn=jj['nprocRR'], fastqopt=fastqopt)
     if(whichmachine == 2):
-      nerscheader(ofpsh,jj['name'],jobtime=jj[jobtimeNN], mppwidth=jj['nprocNN'], qname='thruput')
+      nerscheader(ofpsh,jj['name'],jobtime=jj['jobtimeNN'], mppwidth=jj['nprocNN'], qname='thruput')
     for DR in jj['DRlist']:
       txtout = jj['name']+'_'+str(DR)
       if(jj['fmttype'] == 0):
