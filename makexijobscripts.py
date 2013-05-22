@@ -30,8 +30,8 @@ def nerscheader(ofp,jobname,jobtime='23:59:59',mppwidth=24,qname='thruput'):
 
 if __name__ == '__main__':
 
-  if(len(sys.argv) != 3):
-    print 'Usage: makexijobscripts.py task whichmachine'
+  if(len(sys.argv) != 4):
+    print 'Usage: makexijobscripts.py task whichmachine whichset'
     print 'note this will break if you dont run it on whichmachine'
     print 'whichmachine = 0 [howdie]'
     print 'whichmachine = 1 [riemann]'
@@ -41,23 +41,36 @@ if __name__ == '__main__':
     print 'task = 1: convert D/R counts to angweight and copy it over to other directories that need it'
     print 'task = 2: do xiell counts.'
     print 'task = 3: do wp counts.'
+    print 'whichset: which data/mock/theory catalogs you want to work on.'
+    print 'whichset = 0: dr10v7'
+    print 'whichset = 1: mocks'
     sys.exit(1)
 
   fastqopt = 0
 
   task = int(sys.argv[1])
   whichmachine = int(sys.argv[2])
+  whichset = int(sys.argv[3])
+
+  assert whichmachine >= 0 and whichmachine <= 2
+  assert whichset >= 0 and whichset <= 1
 
   ## data dir locations.
   ## HH = howdie, RR = riemann, NN = nersc.
 
-  dHH = "/home/howdiedoo/boss/tiledmockboss5002redo/"
-  dRR = "/data/bareid/tiledmockboss5002redo/"
-  dNN = "/scratch/scratchdirs/bareid/tiledmockboss5002redo/"
+  if(whichset == 0):
+    dHH = "/home/howdiedoo/boss/mksamplecatslatestdr10/"
+    dRR = None ## is it there?
+    dNN = "/scratch/scratchdirs/bareid/boss/mksamplecatslatestdr10/v7/threed/"
+
+  if(whichset == 1):
+    dHH = "/home/howdiedoo/boss/tiledmockboss5002redo/"
+    dRR = "/data/bareid/tiledmockboss5002redo/"
+    dNN = "/scratch/scratchdirs/bareid/tiledmockboss5002redo/"
 
   ## working directory base.
   wHH = "/home/howdiedoo/boss/"
-  wRR = "/home/bareid/boss/tiledmockboss5002redo/"
+  wRR = "/home/bareid/boss/"
   wNN = "/global/u1/b/bareid/boss/"      
 
   ## nersc
@@ -77,6 +90,7 @@ if __name__ == '__main__':
   prelist = [preambleHH, preambleRR, preambleNN]
   postlist = [postambleHH, postambleRR, postambleNN]
 
+  ############### SET 1, MOCKS ###########################
   ## data, random, fout, angweight pairs.
   cat012 = {'dataf':'cmass-boss5002sector-FBBRv2icoll012.dat','ranf':'randoms-boss5002-icoll012-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2icoll012','angweight':None}
   catNN = {'dataf':'cmass-boss5002sector-FBBRv2-NN.dat','ranf':'randoms-boss5002-NN-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-NN','angweight':None}
@@ -86,6 +100,16 @@ if __name__ == '__main__':
 
   ## these are fed upwards -- has the correct angular clustering upweighting file.
   catangfinal = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angzcutweightboss5002redo.1pw'}
+
+  catblank = {'dataf':,'ranf':,'outf':,'angweight':}
+  
+  ############### SET 2, dr10v7 N and S ###########################
+  catNNdr10v7N = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-N-FBBRNN','angweight':None}
+  catangdr10v7N = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRang.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRang.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-N-FBBRang','angweight':'angweightsNmar1.1pw'}
+
+  catNNdr10v7S = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-S-FBBRNN.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-S-FBBRNN.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-S-FBBRNN','angweight':None}
+  catangdr10v7S = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-S-FBBRang.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-S-FBBRang.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-S-FBBRang','angweight':'angweightsSmar1.1pw'}
+
 
 ### need these for data, not the mocks though
 #  catanghigh = {'dataf':,'ranf':,'outf':,'angweight':''}
@@ -99,6 +123,7 @@ if __name__ == '__main__':
   ## that's encoded in fmttype variable.  0 is std, 1 adds on the angular weight as a last argument.
   
   ## ang jobs for mocks.
+  ############### SET 1, MOCKS ###########################
   jobang1 = {'name': 'ang1', 'dname': 'zdistvXlogbinsompcleverLSangfaster', 'whichcat': catangtest, \
          'fmtstring': '%s./xiLSlogbins %s %s 4 4 %d %s > %s%s',  'fmttype':0, 'DRlist':[1,2,3], \
          'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
@@ -128,16 +153,33 @@ if __name__ == '__main__':
          'fmtstring': '%s./xiLSwpangweight %s %s 2 %d %s %s > %s%s ', 'fmttype':1, 'DRlist':[1,2,3], \
          'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
   
+  ############### SET 2, dr10v7 N and S ###########################
+  jobwpNN_dr10v7N = {'name': 'wpNN_dr10v7N', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catNNdr10v7N, \
+         'fmtstring': '%s./xiLSwpnnweight %s %s 2 %d %s > %s%s ', 'fmttype':0, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+  jobwpang_dr10v7N = {'name': 'wpang_dr10v7N', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catangdr10v7N, \
+         'fmtstring': '%s./xiLSwpangweight %s %s 2 %d %s %s > %s%s ', 'fmttype':1, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+  jobwpNN_dr10v7S = {'name': 'wpNN_dr10v7S', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catNNdr10v7S, \
+         'fmtstring': '%s./xiLSwpnnweight %s %s 2 %d %s > %s%s ', 'fmttype':0, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+  jobwpang_dr10v7S = {'name': 'wpang_dr10v7S', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catangdr10v7S, \
+         'fmtstring': '%s./xiLSwpangweight %s %s 2 %d %s %s > %s%s ', 'fmttype':1, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+
          
 
   ## task0: run code to get w(theta), from which to derive angular weights.
   ## hard code times and np here.
 
   ddir, workingdir, preamble, postamble = dlist[whichmachine], wdirlist[whichmachine], prelist[whichmachine], postlist[whichmachine]
+  joblist = []  ## do nothing!
   if(task==0):
     
     ## jobs in this list must have the same format.
-    joblist = [jobang1, jobang1zcut]
+    if(whichset == 1):
+      joblist = [jobang1, jobang1zcut]
+    
 
   if(task == 1):
     #print 'task = 1: convert D/R counts to angweight and copy it over to other directories that need it'
@@ -147,11 +189,16 @@ if __name__ == '__main__':
 
   ## task 2: run xiell.
   if(task == 2):
-    joblist = [jobxiell012, jobxiellNN, jobxiellang]
+    if(whichset == 1):
+      joblist = [jobxiell012, jobxiellNN, jobxiellang]
 
   ## task 3: run wp
   if(task == 3):
-    joblist = [jobwp012, jobwpNN, jobwpang]
+    if(whichset == 1):
+      joblist = [jobwp012, jobwpNN, jobwpang]
+    else:
+      joblist = [jobwpNN_dr10v7N, jobwpang_dr10v7N, jobwpNN_dr10v7S, jobwpang_dr10v7S]
+
 
   ## task 4:
 
