@@ -10,6 +10,10 @@ import wp
 import xiell
 import xi
 
+reload(xi2d)
+reload(xiell)
+reload(wp)
+
 # <codecell>
 
 ## correlation function measurements, computed elsewhere in a parallel C code.
@@ -34,9 +38,10 @@ print xiD
 
 #see what raw correlation looks like.
 ff = plt.figure(figsize=[6,6])
-plt.imshow(xiD.xi.reshape(xiD.n1d,xiD.n1d),extent=[xiD.rsig.min(),xiD.rsig.max(),xiD.rpi.max(),xiD.rpi.min()])
+ii=plt.imshow(xiD.xi.reshape(xiD.n1d,xiD.n1d),extent=[xiD.rsig.min(),xiD.rsig.max(),xiD.rpi.max(),xiD.rpi.min()])
 plt.xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
 plt.ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+plt.colorbar(ii)
 ff.savefig("crappybutterfly.png")
 
 # <codecell>
@@ -45,13 +50,14 @@ ff.savefig("crappybutterfly.png")
 
 ff = plt.figure(figsize=[6,6])
 rsigS, rpiS, xiS, n1dS = xiD.symmetrize()
-xiremap = np.log10(xiS)/np.log10(xiD.xi.max()/xiD.xi.min())
+xiremap = np.log10(xiS/xiD.xi.min())/np.log10(xiD.xi.max()/xiD.xi.min())
 xiremap = xi2d.getflip(xiremap,n1dS)
 xl=xiD.rsig.max()
 yl=xiD.rpi.max()
 
 #plt.imshow(xiremap.reshape(xiD.n1d,xiD.n1d),extent=[xiD.rsig.min(),xiD.rsig.max(),xiD.rpi.max(),xiD.rpi.min()])
-plt.imshow(xiremap.reshape(n1dS,n1dS),extent=[-xl,xl,-yl,yl])
+ii=plt.imshow(xiremap.reshape(n1dS,n1dS),extent=[-xl,xl,-yl,yl])
+plt.colorbar(ii)
 plt.xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
 plt.ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
 ff.savefig("nicebutterfly.png")
@@ -60,9 +66,9 @@ ff.savefig("nicebutterfly.png")
 
 ## a contour plot is easiest to work with, though.
 print len(xiD.xi), xiD.xi[0]
-ax=xiD.makedensityplot()
+ff, ax=xiD.makedensityplot()
 xiD.addcontour(ax=ax)
-xiD.densityfig.savefig("nicebutterflywcontours.png")
+ff.savefig("nicebutterflywcontours.png")
 
 # <codecell>
 
@@ -79,6 +85,10 @@ def plotDvsT(xdata,xth,cdata='k',cth='b'):
   xth.addcontour(ax=ax1,color=cth)
   xdata.makecontourplot(ax=ax2,span=[-10,10,-10,10],clevlist=myc,color=cdata)
   xth.addcontour(ax=ax2,color=cth,clevlist=myc)
+  ax1.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+  ax1.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+  ax2.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+  ax2.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
   return fxi
     
 myp=plotDvsT(xiD,xireal)
@@ -158,7 +168,7 @@ xiellpow=1.25
 myc = xD.xi2d.getclevels(ncontours=3,ximax=xD.xi2d.xiinterp(0,0)*0.9,ximin=xD.xi2d.xiinterp(9.5,0))
 myc=[]
 
-a1, a2, a3, pset = xD.makefancyplot(sizeratio=0.5,spanxiell=[0.2,35,-10,50],spanwp=[0.2,35,120,260],wppow=wppow,logyoptwp=0,xiellpow=xiellpow,color2='m',lbl='data')
+fig, a1, a2, a3, pset = xD.makefancyplot(sizescale=1,spanxiell=[0.2,35,-10,50],spanwp=[0.2,35,120,260],wppow=wppow,logyoptwp=0,xiellpow=xiellpow,color2='m',lbl='data')
 
 #a1, a2, a3, pset = xD.makefancyplot(sizeratio=1.0,spanxiell=[0.2,35,-10,50],spanwp=[0.2,35,120,260],spanxi2d=[-10,10,-10,10],clevlist=myc,\
 #wppow=wppow,logyoptwp=0,xiellpow=xiellpow,color2='g')
@@ -173,7 +183,7 @@ for (cval, t, lbl) in zip(clist, tlist, lbllist):
 
 a2.legend(loc=2)
 
-xD.fancyfig.savefig("fancyfigv0.png")
+fig.savefig("fancyfigv0.png")
 
 # <codecell>
 

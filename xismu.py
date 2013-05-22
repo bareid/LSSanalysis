@@ -215,19 +215,19 @@ class xismu:
         nx = 1
         ny = 2
    
-      self.fig = plt.figure(figsize=[5*nx,5*ny])
+      ff = plt.figure(figsize=[5*nx,5*ny])
       axlist = []
       for i in range(self.nmu):
-        axlist.append(self.fig.add_subplot(nx,ny,i+1))
+        axlist.append(ff.add_subplot(nx,ny,i+1))
         if lbl is not None:
           self.addcurve(axlist[i],i,color=color[i],spow=spow,lbl=lbl[i],fmt=fmt)
         else:
           self.addcurve(axlist[i],i,color=color[i],spow=spow,lbl=lbl,fmt=fmt)
 
     else: ## put everything on one
-      self.fig = plt.figure(figsize=[6,6])
+      ff = plt.figure(figsize=[6,6])
       axlist = []
-      axlist.append(self.fig.add_subplot(1,1,1))
+      axlist.append(ff.add_subplot(1,1,1))
       for i in range(self.nmu):
         if lbl is not None:
           self.addcurve(axlist[0],i,color=color[i],spow=spow,lbl=lbl[i],fmt=fmt)
@@ -253,7 +253,7 @@ class xismu:
       else:
         aa.set_ylabel(r'$\xi_{\mu}(s)$',fontsize=20)
 
-    return axlist
+    return ff, axlist
 
 
 

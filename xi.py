@@ -7,7 +7,6 @@ import xi2d
 import wp
 import xiell
 
-
 class xi:
   def __init__(self,xi2dfname=None,wpfname=None,wpicovfname=None,xiellfname=None,xiellicovfname=None,xidatfname=None):
     """
@@ -78,7 +77,7 @@ class xi:
           self.xiell.addcurve(ax=axxiell,ell=ellval,color=color2,\
             spow=settings['xiellpow'],fmt=settings['fmt'],lbl=settings['lbl']) 
 
-  def makefancyplot(self,sizescale=1.,sizeratio=2.,color='k',fmt=None,lbl=None,\
+  def makefancyplot(self,sizescale=1.,color='k',fmt=None,lbl=None,\
          clevlist=[],symmetrizeopt=1,spanxi2d=None,\
          wppow=0,spanwp=None,logxoptwp=1,logyoptwp=1,\
          xiellpow=1,spanxiell=None,logxoptxiell=1,logyoptxiell=0,elllist=[0,2],color2=None,customax=True):
@@ -122,16 +121,16 @@ class xi:
 #    print 'axxi2d: ',xbl,ybb+dy2d,xsize2d,ysize2d
     
     
-    self.fancyfig = plt.figure(figsize=[sizescale*12,sizescale*12*yfac])
-    axxi2d = self.fancyfig.add_axes([xbl,(ybb+dy2d)/yfac,xsize2d,ysize2d/yfac])
+    ff = plt.figure(figsize=[sizescale*12,sizescale*12*yfac])
+    axxi2d = ff.add_axes([xbl,(ybb+dy2d)/yfac,xsize2d,ysize2d/yfac])
     
     x2 = xbl + xsize2d+xbm
     ywp = ybb + ysize1d+ybm
 #    print 'wp: ',x2,ywp,xsize1d,ysize1d
-    axwp = self.fancyfig.add_axes([x2,ywp/yfac,xsize1d,ysize1d/yfac])
+    axwp = ff.add_axes([x2,ywp/yfac,xsize1d,ysize1d/yfac])
 #    print 'xiell: ',x2,ybb,xsize1d,ysize1d
 #    print 'gaa',x2+xsize1d,ywp+ysize1d
-    axxiell = self.fancyfig.add_axes([x2,ybb/yfac,xsize1d,ysize1d/yfac])
+    axxiell = ff.add_axes([x2,ybb/yfac,xsize1d,ysize1d/yfac])
 
     if(logxoptwp==1): 
       axwp.set_xscale('log')
@@ -177,7 +176,7 @@ class xi:
 #color,fmt,lbl,clevlist,symmetrizeopt,wppow,xiellpow,elllist,color2,fancyplotsettings)
 
     if(customax==True):
-      customxticks=[0.5,1.0,5.0,10.,20.,30.]
+      customxticks=[0.5,1.0,5.0,10.,30.]
       axwp.xaxis.set_major_locator(plt.FixedLocator(customxticks))
       axwp.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
       axwp.xaxis.set_ticks_position('bottom')
@@ -204,7 +203,7 @@ class xi:
     axxi2d.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
 
 
-    return axxi2d, axwp, axxiell, fancydict
+    return ff, axxi2d, axwp, axxiell, fancydict
 
 if __name__ == '__main__':
   print 'hi'

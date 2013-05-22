@@ -136,8 +136,10 @@ class wp:
     """
 
     if ax is None:
-      self.fig = plt.figure(figsize=[6,6])
-      ax=self.fig.add_subplot(1,1,1)
+      ff = plt.figure(figsize=[6,6])
+      ax=ff.add_subplot(1,1,1)
+    else:
+      ff = None
 
     self.addcurve(ax,color=color,rppow=rppow,lbl=lbl,fmt=fmt)
 
@@ -163,7 +165,7 @@ class wp:
       ax.xaxis.set_ticks_position('bottom')
       ax.tick_params(axis='x',reset=False,which='both',length=8,width=2)
 
-    return ax
+    return ff, ax
 
   def chi2(self,other):
     """

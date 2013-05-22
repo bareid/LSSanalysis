@@ -30,7 +30,7 @@ for mtag in mtaglist:
   outfname='avgmbin%ddown.smuxi' % (cnt+1)
   xilist[cnt].printsmuxi(outfname)
   if(cnt == 0):
-    axlist=xilist[cnt].makexismuplot(panelopt=0,logxopt=0,color=myc[cnt])
+    ff, axlist=xilist[cnt].makexismuplot(panelopt=0,logxopt=0,color=myc[cnt])
   else:
     for jj in range(xilist[cnt].nmu):
       xilist[cnt].addcurve(axlist[0], jj,color=myc[cnt])
@@ -50,13 +50,13 @@ for muval in xilist[0].mu1d:
 
 print lbllist
 ## least massive bin.
-aa=xilist[0].makexismuplot(panelopt=0,logxopt=0,color=['b','g','r','c'],lbl=lbllist)
+flow, aa=xilist[0].makexismuplot(panelopt=0,logxopt=0,color=['b','g','r','c'],lbl=lbllist)
 plt.legend()
 plt.title('low mass bin')
 plt.show()
 
 #most massive bin
-aa=xilist[-1].makexismuplot(panelopt=0,logxopt=0,color=['b','g','r','c'],lbl=lbllist)
+fhigh, aa=xilist[-1].makexismuplot(panelopt=0,logxopt=0,color=['b','g','r','c'],lbl=lbllist)
 plt.legend()
 plt.title('high mass bin')
 plt.show()

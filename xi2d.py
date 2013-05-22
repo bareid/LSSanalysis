@@ -289,8 +289,10 @@ class xi2d:
     """
     if ax is None:
 ## we want aspect ratio to be 1.!!
-      self.contourfig = plt.figure(figsize=[6,6])
-      ax=self.contourfig.add_subplot(1,1,1)
+      ff = plt.figure(figsize=[6,6])
+      ax=ff.add_subplot(1,1,1)
+    else:
+      ff = None
 
     self.addcontour(ax,symmetrizeopt,clevlist,color)
     if span is None:
@@ -300,9 +302,10 @@ class xi2d:
         span = [self.rsig.min(), self.rsig.max(), self.rpi.min(), self.rpi.max()]
 
     ax.axis(span)
-    ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
-    ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
-    return ax
+    if ff is not None:
+      ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+      ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+    return ff, ax
     
   def makedensityplot(self,ax=None,span=None,remapopt=1):
     """
@@ -313,8 +316,8 @@ class xi2d:
     """
     if ax is None:
 ## we want aspect ratio to be 1.!!
-      self.densityfig = plt.figure(figsize=[6,6])
-      ax=self.densityfig.add_subplot(1,1,1)
+      ff = plt.figure(figsize=[6,6])
+      ax=ff.add_subplot(1,1,1)
 
     self.adddensity(ax,remapopt)
     if span is None:
@@ -323,7 +326,7 @@ class xi2d:
     ax.axis(span)
     ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
     ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
-    return ax
+    return ff, ax
 
 if __name__ == "__main__":
 
