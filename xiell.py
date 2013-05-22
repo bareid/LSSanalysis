@@ -105,8 +105,8 @@ class xiell:
         self.fname = None
         self.s0 = self.svec[0,:]
         self.xi0 = self.xi[0,:]
-        self.s2 = self.svec[2,:]
-        self.xi2 = self.xi[2,:]
+        self.s2 = self.svec[1,:]
+        self.xi2 = self.xi[1,:]
 
       else:
         assert 0==1
@@ -356,6 +356,9 @@ class xiell:
   ## copying from boss/zdistvXlogbinsompcleverLSnew/xitruegenericallscalesRRdown.py for this function.
   ## and also boss/zdistvXlogbinsompcleverLSsmallscale/rebinxismugenericcutsmallscale.py
 
+
+## has this function been tested??
+
 def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12):
   """
   This function should supercede older codes with names like rebinxismugeneric*py
@@ -478,7 +481,8 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,dfacs=1,dfacmu=1,icovfnam
         myrr = myrr + ximisc.downsample1d(RRg[i1:i2],dfacmu)
 
     yy = np.where(myrr < 0.01)[0]
-    for ell in [0,2,4]:
+    
+    for ell in np.arange(0,nell*2,2):
       ###### WRONG!! #####
       #xi[i,ell/2] = ((mydd-mydr*DRfac)/myrr/DRfac**2*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
       ### correct, but can't do fixRR
