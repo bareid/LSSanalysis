@@ -474,7 +474,7 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
 
     zz = np.where(myrr < smallRRcut)[0]
     if(len(zz) > 0):
-      print 'using smallRRcut!  here are details',nsub,i,rcen[i],smallRRcut
+      print 'using smallRRcut!  here are details',i,rcen[i],smallRRcut
       myrr = myrr.mean()
 
     yy = np.where(myrr < 0.01)[0]
