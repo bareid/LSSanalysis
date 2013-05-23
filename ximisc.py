@@ -70,3 +70,33 @@ def comparexi(xia, xib,maxfrac=1.e-4,maxdiff=1.e-4):
     return 0
 
 
+##read out D/R factors from pair counts headers.
+def getDRfactors(fbase):
+  """
+  Input DR and RR filepaths.  This function reads
+  DRfac and fixRRdown from that path.
+  """
+
+  fDR = fbase+'.DRopt2'
+  fRR = fbase+'.DRopt3'
+
+  ifpRR = open(fRR,'r')
+  line = ifpRR.readline()
+  line = ifpRR.readline()
+  DDwgt = float(line.split(':')[1].split(',')[0])
+  RRwgt = float(line.split(':')[1].split(',')[1])
+  RRfacdown = float(RRwgt)
+  ifpRR.close()
+
+  ifpDR = open(fDR,'r')
+  line = ifpDR.readline()
+  line = ifpDR.readline()
+  ## rerun everything to get this to 12 digits, just in caes!
+  DDwgt = float(line.split(':')[1].split(',')[0])
+  RRwgt = float(line.split(':')[1].split(',')[1])
+  DRfac = float(DDwgt)/float(RRwgt)
+  ifpDR.close()
+  fixRR = RRwgt/RRfacdown
+
+  return DRfac, fixRR
+

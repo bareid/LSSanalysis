@@ -359,13 +359,20 @@ class xiell:
 
 ## has this function been tested??
 
-def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12):
+def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
+                dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
+                DRfacinfo=None,smallRRcut=-1.):
   """
   This function should supercede older codes with names like rebinxismugeneric*py
   input the base for the DR files, as well as optional bin files and small scale 
   cutoff for masking (rperpcut).  If you don't want to use a binfile to specify
   the downsampling, use dfacs and dfacmu inputs.
   smincut/smaxcut will only be used if binfile is None.
+  DRfacinfo is used to pass [DRfac, fixRR] (dont get it from file headers in this case)
+  That feature is necessary for computing covariance matrices from bootstrap, where that factor
+  should be fixed by total N and/or S, it does not vary from bootstrap region to region.
+  smallRRcut allows you to replace randoms(mu) with the average over mu where the total number of 
+  randoms in the bin is smaller than smallRRcut, just to keep Poisson noise down.
   """
   fDD = fbase+'.DRopt1'
   fDR = fbase+'.DRopt2'
@@ -380,27 +387,12 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,dfacs=1,dfacmu=1,icovfnam
     DDg = DDg[ikeep]
     DRg = DRg[ikeep]
     RRg = RRg[ikeep]
-  ifpRR = open(fRR,'r')
-  line = ifpRR.readline()
-  line = ifpRR.readline()
-  ## rerun everything to get this to 12 digits, just in caes!
-  DDwgt = float(line.split(':')[1].split(',')[0])
-  RRwgt = float(line.split(':')[1].split(',')[1])
-  RRfacdown = float(RRwgt)
-  ifpRR.close()
 
-  ifpDR = open(fDR,'r')
-  line = ifpDR.readline()
-  line = ifpDR.readline()
-  ## rerun everything to get this to 12 digits, just in caes!
-  DDwgt = float(line.split(':')[1].split(',')[0])
-  RRwgt = float(line.split(':')[1].split(',')[1])
-  DRfac = float(DDwgt)/float(RRwgt)
-  #print DRfac
-  ifpDR.close()
-
-  fixRR = RRwgt/RRfacdown
-  #print 'fixRR: ',fixRR
+  if DRfacinfo is None:
+    DRfac, fixRR = ximisc.getDRfactors(fbase)
+  else:
+    DRfac = DRfacinfo[0]
+    fixRR = DRfacinfo[1]
 
   nmu = len(np.where(rg == rg[0])[0])
   dmu  = 1./float(nmu)
@@ -472,21 +464,28 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,dfacs=1,dfacmu=1,icovfnam
       i2 = (ristart+ishort+1)*nmu
       if(ishort == 0):
         mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
-        mydd = ximisc.downsample1d(DDg[i1:i2],dfacmu)
-        mydr = ximisc.downsample1d(DRg[i1:i2],dfacmu)
-        myrr = ximisc.downsample1d(RRg[i1:i2],dfacmu)
+        mydd = ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
+        mydr = ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
+        myrr = ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
       else:
-        mydd = mydd + ximisc.downsample1d(DDg[i1:i2],dfacmu)
-        mydr = mydr + ximisc.downsample1d(DRg[i1:i2],dfacmu)
-        myrr = myrr + ximisc.downsample1d(RRg[i1:i2],dfacmu)
+        mydd = mydd + ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
+        mydr = mydr + ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
+        myrr = myrr + ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
+
+    zz = np.where(myrr < smallRRcut)[0]
+    if(len(zz) > 0):
+      print 'using smallRRcut!  here are details',nsub,i,rcen[i],smallRRcut
+      myrr = myrr.mean()
 
     yy = np.where(myrr < 0.01)[0]
-    
+    if(len(yy) > 0):
+      print 'ack why zerod out regions?'
+      print len(yy)
+      print i, dfacs, dfacmu
+      print myrr
+      print mymu
+
     for ell in np.arange(0,nell*2,2):
-      ###### WRONG!! #####
-      #xi[i,ell/2] = ((mydd-mydr*DRfac)/myrr/DRfac**2*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
-      ### correct, but can't do fixRR
-#        xitmp = (mydd-mydr*DRfac)/myrr/DRfac**2+1.
       xitmp = (mydd-mydr*DRfac)/myrr/DRfac**2/fixRR**2+1.
       xitmp[yy] = 0.  ## fix 0'd out regions
       xi[ell/2,i] = (xitmp*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
