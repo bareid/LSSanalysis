@@ -406,19 +406,20 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
   ## compute linear spacings.
   dmutmp = (mu1d[1:]-mu1d[:-1]).mean()
   ds = (s1d[1:]-s1d[:-1]).mean()
+  dlogs = (np.log(s1d[1:]/s1d[:-1])).mean()
   if (np.fabs(mu1d[1:]-mu1d[:-1] - dmutmp) > 0.0001*dmutmp).any():
     ## not linear binning!
     ## this shouldn't be the case for a s,mu grid.
     assert 0==1
     assert np.fabs(dmutmp - dmu) < 1.0e-4
 
-  if (np.fabs(s1d[1:]-s1d[:-1] - ds) > 0.0001*ds).any():
+  if (np.fabs(s1d[1:]-s1d[:-1] - ds) < 0.0001*ds).all():
     logsopt = 0
     rglowedge = rg.copy()
     rglowedge = rglowedge-0.5*ds
-  dlogs = (np.log(s1d[1:]/s1d[:-1])).mean()
   if (np.fabs(np.log(s1d[1:])-np.log(s1d[:-1]) - dlogs) < 0.0001*dlogs).all():
     logsopt = 1
+    rglowedge = rg.copy()
     rglowedge = rglowedge*np.exp(-0.5*dlogs)
 
   assert logsopt == 0 or logsopt == 1
@@ -427,10 +428,22 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
   xx = np.where(rglowedge*(1-(mug+0.5*dmu)**2)**0.5 < rperpcut)[0]
   if(rperpcut < 0.):  assert len(xx) == 0
   if len(xx) > 0:
-    print 'hi beth, cutting this many bins:',len(xx)
     DDg[xx] = 0.
     DRg[xx] = 0.
     RRg[xx] = 0.
+
+  mymask = np.zeros(len(DDg),dtype='int')
+  mymask[xx] = 1
+
+
+  ## tmp!  print a mask file.
+  if(0==1):
+    print 'yoyoyo opening masktmp.dat'
+    ofpmask = open('masktmp.dat','w')
+    for i in range(len(mymask)):
+      ofpmask.write('%d\n' % (mymask[i]))
+    ofpmask.close()
+  
 
   if binfile is not None:
     ## specifies how many rbins to join together for first bin, next bin, etc.
@@ -444,11 +457,24 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     nrcut = len(s1d)/dfacs
     dmudown = dfacmu*dmu
 
-  xi = np.zeros([nell,nrcut],dtype=float)
-  svec = np.zeros([nell,nrcut],dtype=float)
+  ## check mask if I'm going to cut more.
+  ristart = 0
+  badlist = np.zeros(nrcut,dtype='int')
+  for i in range(nrcut):
+    if binfile is not None:
+      dfacs = rjoin[i]
+    if (mymask[ristart*nmu:(ristart+dfacs)*nmu] == 1).all():
+      badlist[i] = 1
+    ristart = ristart + dfacs
+
+  nrcutkeep = nrcut-len(np.where(badlist == 1)[0])
+
+  xi = np.zeros([nell,nrcutkeep],dtype=float)
+  svec = np.zeros([nell,nrcutkeep],dtype=float)
 
   rcen = np.zeros(nrcut,dtype=float)
   ristart = 0
+  xiindx = 0
   for i in range(nrcut):
     if binfile is not None:
       dfacs = rjoin[i]
@@ -478,7 +504,7 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
       myrr = myrr.mean()
 
     yy = np.where(myrr < 0.01)[0]
-    if(len(yy) > 0):
+    if(len(yy) > 0 and 0==1):
       print 'ack why zerod out regions?'
       print len(yy)
       print i, dfacs, dfacmu
@@ -488,9 +514,12 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     for ell in np.arange(0,nell*2,2):
       xitmp = (mydd-mydr*DRfac)/myrr/DRfac**2/fixRR**2+1.
       xitmp[yy] = 0.  ## fix 0'd out regions
-      xi[ell/2,i] = (xitmp*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
-      svec[ell/2,i] = rcen[i]
+      if(badlist[i] == 0):
+        xi[ell/2,xiindx] = (xitmp*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
+        svec[ell/2,xiindx] = rcen[i]
     ristart = ristart + dfacs
+    if(badlist[i] == 0):
+      xiindx += 1
 
   return xiell(sxilist=[svec, xi],icovfname=icovfname)
 

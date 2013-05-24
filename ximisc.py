@@ -60,14 +60,45 @@ def comparexi(xia, xib,maxfrac=1.e-4,maxdiff=1.e-4):
   xi2 = xib.flatten()
   if len(xi1) != len(xi2):
     return 2
-  xx = np.where(np.fabs((xi1-xi2)/xi1) > 1.e-4,1,0)
-  yy = np.where(np.fabs(xi1-xi2) > 1.e-4,1,0)
+  xx = np.where(np.fabs((xi1-xi2)/xi1) > maxfrac,1,0)
+  yy = np.where(np.fabs(xi1-xi2) > maxdiff,1,0)
   zz = (xx & yy)
 
   if (zz != 0).any():
     return 1
   else:
     return 0
+
+
+def comparegeneric(a, b,maxfrac=1.e-4,maxdiff=1.e-4):
+  """
+  maxdiff is the maximum absolute difference allowed.
+  maxfrac is maximum fractional deviation tolerated (unless diff less than maxdiff)
+  Returns 0 if they're the same.
+  Returns 1 if they disagree.
+  Returns 2 if they have different shapes.
+  This is identical to comparexi, should I delete that one?
+  """
+  xi1 = a.flatten()
+  xi2 = b.flatten()
+  if len(xi1) != len(xi2):
+    return 2
+  xx = np.where(np.fabs((xi1-xi2)/xi1) > maxfrac,1,0)
+  yy = np.where(np.fabs(xi1-xi2) > maxdiff,1,0)
+  zz = (xx & yy)
+
+  if (zz != 0).any():
+    return 1
+  else:
+    return 0
+
+def getmatrixnorm(m):
+  mnorm = copy.deepcopy(m)
+  (nx, ny) = m.shape
+  for i in range(nx):
+    for j in range(ny):
+      mnorm[i,j] = m[i,j]/(m[i,i]*m[j,j])**0.5 
+  return mnorm
 
 
 ##read out D/R factors from pair counts headers.
