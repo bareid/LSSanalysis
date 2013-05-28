@@ -14,7 +14,7 @@ class xiell:
     """
 #    try:
     if(0==0):
-      if(xiellfname is not None):
+      if((xiellfname is not None) and (sxilist == [])):
         self.fname = [xiellfname]
         ## accept 2 formats.
   ## later extend format to include xi0,2,4?
@@ -521,7 +521,7 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     if(badlist[i] == 0):
       xiindx += 1
 
-  return xiell(sxilist=[svec, xi],icovfname=icovfname)
+  return xiell(xiellfname=fDR,sxilist=[svec, xi],icovfname=icovfname)
 
 
 if __name__ == '__main__':
