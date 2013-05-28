@@ -100,6 +100,14 @@ def getmatrixnorm(m):
       mnorm[i,j] = m[i,j]/(m[i,i]*m[j,j])**0.5 
   return mnorm
 
+def getmatrixdiag(m):
+  (nx, ny) = m.shape
+  if nx != ny:
+    return None
+  diag = np.zeros(nx)
+  for i in range(nx):
+    diag[i] = m[i,i]
+  return diag
 
 ##read out D/R factors from pair counts headers.
 def getDRfactors(fbase):

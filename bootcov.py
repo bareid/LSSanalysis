@@ -78,13 +78,6 @@ def debiasdataandcov(xiNNd, xiangd, xiangdhigh, xiangdlow, xiNNm, xiangm, xi012m
   xidebiased = copy.deepcopy(xicorrdtmp.xi)
   mydelta = xi012m.xi - xicorrm.xi
   xidebiased = xidebiased + mydelta
-  xifinal = xiell.xiell(sxilist=[xiNNd.svec,xidebiased])
-  if fname is not None:
-    ofp = open(fname,'w')
-    ofp.write("# ellmax = %d" % ((nell-1)*2))
-    for i in range(len(xifinal.svec.flatten())):
-      ofp.write('%e %e\n' % (xifinal.svec.flatten()[i], xifinal.xi.flatten()[i]))
-    ofp.close()
 
   ## now the cov.
   ## make sure this is the cov for the corrected statistic with same splits.
@@ -99,39 +92,58 @@ def debiasdataandcov(xiNNd, xiangd, xiangdhigh, xiangdlow, xiNNm, xiangm, xi012m
       ilist.append(int(ss))
     assert ilist[0] == splitxi0
     assert ilist[1] == splitxi2
+
+    diagstat = np.zeros(xiNNd.ndata)
+    diagtot = np.zeros(xiNNd.ndata)
+    for i in range(len(diagstat)):
+      diagstat[i] = cov[i,i]
+    diagvar = np.zeros(xiNNd.ndata)
+    xiangdiffvar = (0.5*(xiangdhigh.xi.flatten()-xiangdlow.xi.flatten()))**2 
+    diagvar[0:splitxi0] = xiangdiffvar[0:splitxi0]
+    nxi0 = len(xiNNd.xi0)
+    diagvar[nxi0:nxi0+splitxi2] = xiangdiffvar[nxi0:nxi0+splitxi2] 
+    print 'ang high/low variance: ',diagvar/diagstat
+    diagvar = diagvar + (mydelta.flatten())**2
+    print 'bias variance: ',(mydelta.flatten())**2/diagstat
+    ## add it into the covarianace matrix.
+    for i in range(xiNNd.ndata):
+      cov[i,i] += diagvar[i]
+      diagtot[i] = cov[i,i]
+    print 'total sys variance fraction',diagtot/diagstat
+  
+    ## make it a matrix.
+    cov = np.matrix(cov)
+    icov = cov.I
+  
+    fcovout = covstatfname+'.sys'
+    ## print the covariance and icov to new file.
+    printcov(cov,fcovout)
+    tmp = fcovout.split('/')
+    tmp[-1] = 'i'+tmp[-1]
+    ifcovout = '/'.join(tmp)
+    printcov(icov,ifcovout)
+  
+    xifinal = xiell.xiell(sxilist=[xiNNd.svec,xidebiased],icovfname=ifcovout)
+    if fname is not None:
+      ofp = open(fname,'w')
+      ofp.write("# ellmax = %d\n" % ((nell-1)*2))
+      for i in range(len(xifinal.svec.flatten())):
+        ofp.write('%e %e\n' % (xifinal.svec.flatten()[i], xifinal.xi.flatten()[i]))
+      ofp.close()
+
+    return xifinal, cov
+
   else:
 #  except:
     print 'cov file name does not match input splits, returning None!'
-    return xifinal, None
-
-  diagstat = np.zeros(xiNNd.ndata)
-  diagtot = np.zeros(xiNNd.ndata)
-  for i in range(len(diagstat)):
-    diagstat[i] = cov[i,i]
-  diagvar = np.zeros(xiNNd.ndata)
-  xiangdiffvar = (0.5*(xiangdhigh.xi.flatten()-xiangdlow.xi.flatten()))**2 
-  diagvar[0:splitxi0] = xiangdiffvar[0:splitxi0]
-  nxi0 = len(xiNNd.xi0)
-  diagvar[nxi0:nxi0+splitxi2] = xiangdiffvar[nxi0:nxi0+splitxi2] 
-  print 'ang high/low variance: ',diagvar/diagstat
-  diagvar = diagvar + (mydelta.flatten())**2
-  print 'bias variance: ',(mydelta.flatten())**2/diagstat
-  ## add it into the covarianace matrix.
-  for i in range(xiNNd.ndata):
-    cov[i,i] += diagvar[i]
-    diagtot[i] = cov[i,i]
-  print 'total sys variance fraction',diagtot/diagstat
-
-  ## make it a matrix.
-  cov = np.matrix(cov)
-  icov = cov.I
-
-  fcovout = covstatfname+'.sys'
-  ## print the covariance and icov to new file.
-  printcov(cov,fcovout)
-  ifcovout = 'i'+fcovout
-  printcov(icov,fcovout)
-  return xifinal, cov
+    xifinal = xiell.xiell(sxilist=[xiNNd.svec,xidebiased])
+    if fname is not None:
+      ofp = open(fname,'w')
+      ofp.write("# ellmax = %d\n" % ((nell-1)*2))
+      for i in range(len(xifinal.svec.flatten())):
+        ofp.write('%e %e\n' % (xifinal.svec.flatten()[i], xifinal.xi.flatten()[i]))
+      ofp.close()
+      return xifinal, None
     
 
 def parsebootinfo(bootfile,workingdir):
@@ -220,7 +232,7 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
     bintag = binfile.split('/')[-1].split('.')[0]
     covoutNN = 'covtotv7NN_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
     covoutang = 'covtotv7ang_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
-    covoutcorr = 'covtotv7corr_b%d_N%d__rebin-%s_splits%d_%d' % (nboot,nsub,bintag,splitxi0,splitxi2)
+    covoutcorr = 'covtotv7corr_b%d_N%d_rebin-%s_splits%d_%d' % (nboot,nsub,bintag,splitxi0,splitxi2)
 
   if covtag is not None:
     covoutNN = covoutNN + '_%s' % covtag

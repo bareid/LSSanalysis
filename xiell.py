@@ -219,6 +219,8 @@ class xiell:
       return ((diff*self.icov) * (diff.T))[0,0]
     elif self.DorT == 1 and other.DorT == 0:
       return ((diff*other.icov) * (diff.T))[0,0]
+    elif self.DorT == 0 and other.DorT == 0:
+      return ((diff*self.icov) * (diff.T))[0,0]
     else:
       return 0. ## can't compute chi2 without an inverse covariance matrix.
 
