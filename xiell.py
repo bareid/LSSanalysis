@@ -204,6 +204,12 @@ class xiell:
       xiellnew = copy.deepcopy(self)
       xiellnew.xi = other.xi-self.xi
       xiellnew.xilong = other.xilong-self.xilong
+    elif(self.ndata == other.ndata):
+      print 'strong warning!  binnings do not agree.  Subtracting anyway'
+      xiellnew = copy.deepcopy(self)
+      xiellnew.xi = other.xi-self.xi
+      xiellnew.xilong = other.xilong-self.xilong
+
     else:
       print 'subtract fail!  binning misaligned'
       xiellnew = None
@@ -240,8 +246,10 @@ class xiell:
     ofp.close()
 
   def printxielllong(self,outfname):
+    ofp = open(outfname,'w')
     for i in range(self.ndata):
       ofp.write('%e %e\n' % (self.slong[i], self.xilong[i])) 
+    ofp.close()
 
   def addcurve(self,ax,ell=0,color='k',spow=1,fmt=None,lbl=None):
     """
@@ -363,7 +371,7 @@ class xiell:
 
 def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
                 dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
-                DRfacinfo=None,smallRRcut=-1.):
+                DRfacinfo=None,smallRRcut=-1.,periodicopt=0,printmaskopt=0):
   """
   This function should supercede older codes with names like rebinxismugeneric*py
   input the base for the DR files, as well as optional bin files and small scale 
@@ -375,26 +383,36 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
   should be fixed by total N and/or S, it does not vary from bootstrap region to region.
   smallRRcut allows you to replace randoms(mu) with the average over mu where the total number of 
   randoms in the bin is smaller than smallRRcut, just to keep Poisson noise down.
+  If periodicopt == 1, assume the input is file containing [rg, mug, Vg, Ng] as currently output
+  by correlationfxnMASTERv4.
   """
-  fDD = fbase+'.DRopt1'
-  fDR = fbase+'.DRopt2'
-  fRR = fbase+'.DRopt3'
-  rg, mug, DDg = np.loadtxt(fDD,skiprows=3,unpack=True)
-  rg, mug, DRg = np.loadtxt(fDR,skiprows=3,unpack=True)
-  rg, mug, RRg = np.loadtxt(fRR,skiprows=3,unpack=True)
-  if binfile is None:
-    ikeep = np.where((rg >= smincut) & (rg <= smaxcut))[0]
-    rg = rg[ikeep]
-    mug = mug[ikeep]
-    DDg = DDg[ikeep]
-    DRg = DRg[ikeep]
-    RRg = RRg[ikeep]
+  if(periodicopt == 1): # periodic box.
+    rg, mug, Vg, Ng = np.loadtxt(fbase,unpack=True)
+    Vzerochk = Vg.min()*0.1
+    fDR = fbase ## just for the return xiell purposes.
 
-  if DRfacinfo is None:
-    DRfac, fixRR = ximisc.getDRfactors(fbase)
-  else:
-    DRfac = DRfacinfo[0]
-    fixRR = DRfacinfo[1]
+
+  else: # DD,RR counts.
+    fDD = fbase+'.DRopt1'
+    fDR = fbase+'.DRopt2'
+    fRR = fbase+'.DRopt3'
+    rg, mug, DDg = np.loadtxt(fDD,skiprows=3,unpack=True)
+    rg, mug, DRg = np.loadtxt(fDR,skiprows=3,unpack=True)
+    rg, mug, RRg = np.loadtxt(fRR,skiprows=3,unpack=True)
+    if binfile is None:
+      ikeep = np.where((rg >= smincut) & (rg <= smaxcut))[0]
+      rg = rg[ikeep]
+      mug = mug[ikeep]
+      DDg = DDg[ikeep]
+      DRg = DRg[ikeep]
+      RRg = RRg[ikeep]
+
+    if DRfacinfo is None:
+      DRfac, fixRR = ximisc.getDRfactors(fbase)
+    else:
+      DRfac = DRfacinfo[0]
+      fixRR = DRfacinfo[1]
+
 
   nmu = len(np.where(rg == rg[0])[0])
   dmu  = 1./float(nmu)
@@ -430,23 +448,25 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
   xx = np.where(rglowedge*(1-(mug+0.5*dmu)**2)**0.5 < rperpcut)[0]
   if(rperpcut < 0.):  assert len(xx) == 0
   if len(xx) > 0:
-    DDg[xx] = 0.
-    DRg[xx] = 0.
-    RRg[xx] = 0.
+    if periodicopt == 1:
+      Vg[xx] = 0.
+      Ng[xx] = 0.
+    else:
+      DDg[xx] = 0.
+      DRg[xx] = 0.
+      RRg[xx] = 0.
 
-  mymask = np.zeros(len(DDg),dtype='int')
+  mymask = np.zeros(len(rg),dtype='int')
   mymask[xx] = 1
 
-
   ## tmp!  print a mask file.
-  if(0==1):
+  if(printmaskopt == 1):
     print 'yoyoyo opening masktmp.dat'
     ofpmask = open('masktmp.dat','w')
     for i in range(len(mymask)):
       ofpmask.write('%d\n' % (mymask[i]))
     ofpmask.close()
   
-
   if binfile is not None:
     ## specifies how many rbins to join together for first bin, next bin, etc.
     rjoin, mujoin = np.loadtxt(binfile,unpack=True,dtype='int')
@@ -490,32 +510,49 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     for ishort in range(dfacs):
       i1 = (ristart+ishort)*nmu
       i2 = (ristart+ishort+1)*nmu
-      if(ishort == 0):
-        mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
-        mydd = ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
-        mydr = ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
-        myrr = ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
+      if(periodicopt == 1):
+        if(ishort == 0):
+          mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
+          myVg = ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
+          myNg = ximisc.downsample1dsum(Ng[i1:i2],dfacmu)
+        else:
+          myVg = myVg + ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
+          myNg = myNg + ximisc.downsample1dsum(Ng[i1:i2],dfacmu)
+
       else:
-        mydd = mydd + ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
-        mydr = mydr + ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
-        myrr = myrr + ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
+        if(ishort == 0):
+          mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
+          mydd = ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
+          mydr = ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
+          myrr = ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
+        else:
+          mydd = mydd + ximisc.downsample1dsum(DDg[i1:i2],dfacmu)
+          mydr = mydr + ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
+          myrr = myrr + ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
 
-    zz = np.where(myrr < smallRRcut)[0]
-    if(len(zz) > 0):
-      print 'using smallRRcut!  here are details',i,rcen[i],smallRRcut
-      myrr = myrr.mean()
+    if(periodicopt == 1):
+      yy = np.where(myVg < Vzerochk)[0]
+      xitmp = myNg/myVg-1.
+      xitmp[yy] = 0.
 
-    yy = np.where(myrr < 0.01)[0]
-    if(len(yy) > 0 and 0==1):
-      print 'ack why zerod out regions?'
-      print len(yy)
-      print i, dfacs, dfacmu
-      print myrr
-      print mymu
+    else:  ##DR stuff
+      zz = np.where(myrr < smallRRcut)[0]
+      if(len(zz) > 0):
+        print 'using smallRRcut!  here are details',i,rcen[i],smallRRcut
+        myrr = myrr.mean()
 
-    for ell in np.arange(0,nell*2,2):
+      yy = np.where(myrr < 0.01)[0]
       xitmp = (mydd-mydr*DRfac)/myrr/DRfac**2/fixRR**2+1.
       xitmp[yy] = 0.  ## fix 0'd out regions
+
+      if(len(yy) > 0 and 0==1):
+        print 'ack why zerod out regions?'
+        print len(yy)
+        print i, dfacs, dfacmu
+        print myrr
+        print mymu
+
+    for ell in np.arange(0,nell*2,2):
       if(badlist[i] == 0):
         xi[ell/2,xiindx] = (xitmp*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
         svec[ell/2,xiindx] = rcen[i]
