@@ -18,6 +18,14 @@ def DAz(z,om=0.274):
   # converter to angular diameter distance.
   return(quad(lambda zp: 1./Eofz(zp,om),0,z)[0]*DH)
 
+class cosmo:
+  def __init__(self,omegam=0.274,h=0.7):
+    """
+    This will store cosmological parameters and compute cosmological quantities of interest.
+    """
+    cosmo.om = omegam
+    cosmo.h = 0.7
+
 
 if __name__ == '__main__':
   rperpcut = 62./(180./np.pi*3600.)*DAz(0.7)

@@ -2,29 +2,45 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import copy
+import ximisc
 
 class wp:
-  def __init__(self,wpfname,icovfname=None):
-    try:
-      rsig, wp = np.loadtxt(wpfname,unpack=True,usecols=[0,1])
-      self.fname = [wpfname]
-      self.nrsig = len(rsig)
-      self.rsig = rsig
-      self.wp = wp
-      ## comput binning.
-      self.logopt = -1 ## non-simple binning.
-      drsig = (self.rsig[1:]-self.rsig[:-1]).mean()
-      if (np.fabs(self.rsig[1:]-self.rsig[:-1] - drsig) < 0.0001*drsig).all():
-        self.logopt = 0
-        self.drsig = drsig
-      dlogrsig = (np.log(self.rsig[1:]/self.rsig[:-1])).mean()
-      if (np.fabs(np.log(self.rsig[1:])-np.log(self.rsig[:-1]) - dlogrsig) < 0.0001*dlogrsig).all():
-        self.logopt = 1
-        self.dlogrsig = dlogrsig
-      
-    except:
-      print 'bad wp file.'
-      self = None
+  def __init__(self,wpfname=None,icovfname=None,rpwplist=[]):
+    if rpwplist != []:
+      try:
+        rsig = rpwplist[0]
+        wp = rpwplist[1]
+        self.fname = wpfname
+      except:
+        print 'bad rpwplist'
+        self = None
+    else: #read from a file.
+      try:
+        rsig, wp = np.loadtxt(wpfname,unpack=True,usecols=[0,1])
+        self.fname = [wpfname]
+      except:
+        print 'bad wp file'
+        self = None
+
+    if self is not None:
+      try:
+        self.nrsig = len(rsig)
+        self.rsig = rsig
+        self.wp = wp
+        ## comput binning.
+        self.logopt = -1 ## non-simple binning.
+        drsig = (self.rsig[1:]-self.rsig[:-1]).mean()
+        if (np.fabs(self.rsig[1:]-self.rsig[:-1] - drsig) < 0.0001*drsig).all():
+          self.logopt = 0
+          self.drsig = drsig
+        dlogrsig = (np.log(self.rsig[1:]/self.rsig[:-1])).mean()
+        if (np.fabs(np.log(self.rsig[1:])-np.log(self.rsig[:-1]) - dlogrsig) < 0.0001*dlogrsig).all():
+          self.logopt = 1
+          self.dlogrsig = dlogrsig
+        
+      except:
+        print 'bad rp/wp binning or something.'
+        self = None
 
     if(self is not None):
       ## let's finde out if this is a data of theory curve.
@@ -178,6 +194,86 @@ class wp:
       return ((diff*other.icov) * (diff.T))[0,0]
     else:
       return 0. ## can't compute chi2 without an inverse covariance matrix.
+
+  def chi2hack(self,other,otherstart,otherend):
+    """
+    compute chi2 of self with other.  self is the one with the inverse cov.
+    """
+    diff = np.matrix(self.wp-other.wp[otherstart:otherend+1])
+    if self.DorT == 0 and other.DorT == 1:
+      return ((diff*self.icov) * (diff.T))[0,0]
+    elif self.DorT == 1 and other.DorT == 0:
+      return ((diff*other.icov) * (diff.T))[0,0]
+    else:
+      return 0. ## can't compute chi2 without an inverse covariance matrix.
+
+
+def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None):
+  """
+  This function computes wp from DRopt[1-3] files.
+  DRfacinfo is used to pass [DRfac, fixRR] (dont get it from file headers in this case)
+  That feature is necessary for computing covariance matrices from bootstrap, where that factor
+  should be fixed by total N and/or S, it does not vary from bootstrap region to region.
+
+  """
+  if(dfacr != 1):
+    print 'dfacr not 1 is not coded up yet!'
+    sys.exit(1)
+
+  if(periodicopt == 1): # periodic box.
+    print 'did not code up periodic yet!'
+    sys.exit(1)
+
+  else:
+    fDD = fbase+'.DRopt1'
+    fDR = fbase+'.DRopt2'
+    fRR = fbase+'.DRopt3'
+    rpg, rpig, DDg = np.loadtxt(fDD,skiprows=3,unpack=True)
+    rpg, rpig, DRg = np.loadtxt(fDR,skiprows=3,unpack=True)
+    rpg, rpig, RRg = np.loadtxt(fRR,skiprows=3,unpack=True)
+
+    if DRfacinfo is None:
+      DRfac, fixRR = ximisc.getDRfactors(fbase)
+    else:
+      DRfac = DRfacinfo[0]
+      fixRR = DRfacinfo[1]
+
+    nrpibins = len(np.where(rpg == rpg[0])[0])
+    nrpbins = len(np.where(rpig == rpig[0])[0])
+    if nrpibins*nrpbins != len(DDg):
+      return None
+
+    xi = ((DDg-DRg*DRfac)/RRg/DRfac**2 + 1.)
+
+    rpi1d = rpig.reshape(nrpbins,nrpibins)[0]
+    ## check that it's linearly spaced, get drpi
+    drpi = rpi1d[1]-rpi1d[0]
+    chk = rpi1d[1:] - rpi1d[:-1] - drpi
+    aaa = np.where(np.fabs(chk) > 1.0e-5)[0]
+    if(len(aaa) > 0):
+      print 'error!'
+      sys.exit(1)
+    assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+    rp1d = rpg.reshape(nrpbins,nrpibins)[:,0]
+
+    mywp = np.zeros(len(rp1d),dtype='float')
+    wpi = 0
+    for rpval in rp1d:
+      if(testing==1):
+        print 'inside testing'
+        xx = np.where(rpg == rpval)[0]
+        assert len(xx) == nrpibins
+        xicurr = xi[xx]
+        assert (rpig[xx] == rpi1d).all()
+        assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+
+      ## ok, we're sure rpigrid is sane.
+      xx = np.where((rpg == rpval) & (rpig < rpimax))[0]
+      mywp[wpi] = (xi[xx]).sum()*drpi*2.
+      wpi += 1
+
+
+    return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp])
 
 
 

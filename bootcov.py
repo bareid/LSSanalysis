@@ -65,6 +65,12 @@ def xicorrect(xiNNin, xiangin,splitxi0=5,splitxi2=6):
   ## need to fix xi0, xi2, xilong, xi. do those go through?
   return xicorr
 
+def wpcorrect(wpNNin, wpangin, splitwp, wpstart):
+  wpcorrwp=copy.deepcopy(wpangin.wp[wpstart:])
+  rsigin = copy.deepcopy(wpangin.rsig[wpstart:])
+  wpcorrwp[splitwp-wpstart:] = wpNNin.wp[splitwp:]
+  wpcorr = wp.wp(rpwplist=[rsigin,wpcorrwp])
+
 ## subtract the bias measured from the tiled mocks from the data, return a debiased combination.
 ## print it to a file to be fed to bethalexie code in long format.
 def debiasdataandcov(xiNNd, xiangd, xiangdhigh, xiangdlow, xiNNm, xiangm, xi012m,splitxi0, splitxi2,covstatfname,nell=2,fname=None):
@@ -199,8 +205,9 @@ def getpixlist(pixelfname,nsub):
 ## copy /home/howdiedoo/boss/bootstrapdr10v7/calcxi02bootcov.py for how to deal with some linear combination of NN and
 ## ang when deriving cov.
 def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 5000000, fbaseend='_rmax48deltalog10r',\
-               nell=3,binfile=None,rperpcut=-1.,smallRRcut=-1.,
-               dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,
+               xiellorwp=0,rpimax=80.,splitwp=7,\
+               nell=3,binfile=None,rperpcut=-1.,smallRRcut=-1.,\
+               dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
                splitxi0=5,splitxi2=6):
   """
   Get covariance matrix.
@@ -209,6 +216,8 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
   Third tier of stuff goes directly to xiellfromDR
   expect splitxi0/splitxi2 [those go to xicorrect; values determined in
   comparetiledcmockstotruthv0
+  Added functionality for wp: xiellorwp = 1, splitwp = where to go from ang to NN.
+  rpimax is for wp, default is 80.
   """
 
   nsub, pixelfname, fbaseNNstart, fbaseangstart, \
@@ -263,20 +272,33 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
     else:
       DRinfo_NN = DRinfoS_NN
       DRinfo_ang = DRinfoS_ang
-    xiinNN = xiell.xiellfromDR(fbase_NN,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_NN,smallRRcut)
-    xiinang = xiell.xiellfromDR(fbase_ang,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_ang,smallRRcut)
-    xicorr = xicorrect(xiinNN, xiinang, splitxi0, splitxi2)
+    if xiellorwp == 0:
+      xiinNN = xiell.xiellfromDR(fbase_NN,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_NN,smallRRcut)
+      xiinang = xiell.xiellfromDR(fbase_ang,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_ang,smallRRcut)
+      xicorr = xicorrect(xiinNN, xiinang, splitxi0, splitxi2)
+    else:  ## doing wp
+      xiinNN = wp.wpfromDR(fbase_NN,nell,DRfacinfo=DRinfo_NN,rpimax=rpimax,icovfname=icovfname)
+      xiinang = wp.wpfromDR(fbase_ang,nell,DRfacinfo=DRinfo_ang,rpimax=rpimax,icovfname=icovfname)
+      xicorr = wpcorrect(xiinNN,xiinang,splitwp)
     ## tmp!  we tested to make sure we recovered the same correlation fxns as with old code.  Good!
     #tmpfname = "testing/testo%d" % ns
     #xiin.printxiellshort(tmpfname)
     if(ns == 0):
-      ndata = xiinNN.ndata
+      if(xiellorwp == 0):
+        ndata = xiinNN.ndata
+      else:
+        ndata = len(xiinNN.wp)
       xilistNN = np.zeros([nsub,ndata],dtype='float128')
       xilistang = np.zeros([nsub,ndata],dtype='float128')
       xilistcorr = np.zeros([nsub,ndata],dtype='float128')
-    xilistNN[ns,:] = xiinNN.xilong
-    xilistang[ns,:] = xiinang.xilong
-    xilistcorr[ns,:] = xicorr.xilong
+    if(xiellorwp == 0):
+      xilistNN[ns,:] = xiinNN.xilong
+      xilistang[ns,:] = xiinang.xilong
+      xilistcorr[ns,:] = xicorr.xilong
+    else:
+      xilistNN[ns,:] = xiinNN.wp
+      xilistang[ns,:] = xiinang.wp
+      xilistcorr[ns,:] = xicorr.wp
 
   ## check means with total counts.
   nindx = np.where(pixlist['NorS'] == 0)[0]
