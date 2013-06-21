@@ -41,11 +41,10 @@ class wp:
       except:
         print 'bad rp/wp binning or something.'
         self = None
-
     if(self is not None):
       ## let's finde out if this is a data of theory curve.
-      fbase = wpfname.split('.'+wpfname.split('.')[-1])[0]
       try:
+        fbase = wpfname.split('.'+wpfname.split('.')[-1])[0]
         ifpDR = open(fbase+'.DRopt2','r')
         line = ifpDR.readline()
         line = ifpDR.readline()
@@ -61,7 +60,6 @@ class wp:
 #        print 'could not open',fbase+'.DRopt2'
 #        print 'so setting weight to 1.0'
         self.weight = 1.0
-
     if(self is not None):
       if(icovfname is None):
         self.DorT = 1
@@ -73,7 +71,7 @@ class wp:
 ## compute diag errors.
         cov = icov.I
         diagerr = np.array([np.sqrt(cov[i,i]) for i in range(self.nrsig)])
-        self.diagerr = diagerr 
+        self.diagerr = diagerr
 
   def __str__(self):
     mystr = "%d sized wp from [%s]. Range = [%f %f], logopt = %d\n" % (self.nrsig,self.fname,self.rsig.min(),self.rsig.max(),self.logopt)
@@ -101,6 +99,16 @@ class wp:
       print 'add fail!  binning misaligned'
       wpnew = None
     return wpnew
+
+  def printwp(self,outfname):
+    ofp = open(outfname,'w')
+    if(self.DorT == 1): ##this means has no covariance matrix.
+      for i in range(len(self.wp)):
+        ofp.write('%e %e\n' % (self.rsig[i],self.wp[i]))
+    else:
+      for i in range(len(self.wp)):
+        ofp.write('%e %e %e\n' % (self.rsig[i],self.wp[i],self.diagerr[i]))
+    ofp.close()
 
   def wpinterp(self,rsigarr):
     ## do interpolation in log space.
@@ -192,6 +200,8 @@ class wp:
       return ((diff*self.icov) * (diff.T))[0,0]
     elif self.DorT == 1 and other.DorT == 0:
       return ((diff*other.icov) * (diff.T))[0,0]
+    elif self.DorT == 0 and other.DorT == 0:
+      return ((diff*self.icov) * (diff.T))[0,0]
     else:
       return 0. ## can't compute chi2 without an inverse covariance matrix.
 
@@ -207,6 +217,75 @@ class wp:
     else:
       return 0. ## can't compute chi2 without an inverse covariance matrix.
 
+
+def wpfromDDoDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None):
+  """
+  This function computes wp from DRopt[1-2] files.
+  DRfacinfo is used to pass [DRfac, fixRR] (dont get it from file headers in this case)
+  That feature is necessary for computing covariance matrices from bootstrap, where that factor
+  should be fixed by total N and/or S, it does not vary from bootstrap region to region.
+  """
+
+  if(dfacr != 1):
+    print 'dfacr not 1 is not coded up yet!'
+    sys.exit(1)
+
+  if(periodicopt == 1): # periodic box.
+    print 'did not code up periodic yet!'
+    sys.exit(1)
+
+  else:
+    fDD = fbase+'.DRopt1'
+    fDR = fbase+'.DRopt2'
+    rpg, rpig, DDg = np.loadtxt(fDD,skiprows=3,unpack=True)
+    rpg, rpig, DRg = np.loadtxt(fDR,skiprows=3,unpack=True)
+
+    if DRfacinfo is None:
+      DRfac = ximisc.getDRfactoronly(fbase)
+    else:
+      try:
+        DRfac = DRfacinfo[0]
+      except:
+        DRfac = DRfacinfo
+
+    print 'using DRfac',DRfac
+
+    nrpibins = len(np.where(rpg == rpg[0])[0])
+    nrpbins = len(np.where(rpig == rpig[0])[0])
+    if nrpibins*nrpbins != len(DDg):
+      return None
+
+    xi = (2.*DDg/DRg/DRfac - 1.)
+
+    rpi1d = rpig.reshape(nrpbins,nrpibins)[0]
+    ## check that it's linearly spaced, get drpi
+    drpi = rpi1d[1]-rpi1d[0]
+    chk = rpi1d[1:] - rpi1d[:-1] - drpi
+    aaa = np.where(np.fabs(chk) > 1.0e-5)[0]
+    if(len(aaa) > 0):
+      print 'error!'
+      sys.exit(1)
+    assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+    rp1d = rpg.reshape(nrpbins,nrpibins)[:,0]
+
+    mywp = np.zeros(len(rp1d),dtype='float')
+    wpi = 0
+    for rpval in rp1d:
+      if(testing==1):
+        print 'inside testing'
+        xx = np.where(rpg == rpval)[0]
+        assert len(xx) == nrpibins
+        xicurr = xi[xx]
+        assert (rpig[xx] == rpi1d).all()
+        assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+
+      ## ok, we're sure rpigrid is sane.
+      xx = np.where((rpg == rpval) & (rpig < rpimax))[0]
+      mywp[wpi] = (xi[xx]).sum()*drpi*2.
+      wpi += 1
+
+    return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp])
+ 
 
 def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None):
   """
@@ -271,7 +350,6 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
       xx = np.where((rpg == rpval) & (rpig < rpimax))[0]
       mywp[wpi] = (xi[xx]).sum()*drpi*2.
       wpi += 1
-
 
     return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp])
 

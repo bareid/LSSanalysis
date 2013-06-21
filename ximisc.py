@@ -139,3 +139,21 @@ def getDRfactors(fbase):
 
   return DRfac, fixRR
 
+def getDRfactoronly(fbase):
+  """
+  Input DR filepaths.  This function reads
+  DRfac and fixRRdown from that path.
+  """
+
+  fDR = fbase+'.DRopt2'
+
+  ifpDR = open(fDR,'r')
+  line = ifpDR.readline()
+  line = ifpDR.readline()
+  ## rerun everything to get this to 12 digits, just in caes!
+  DDwgt = float(line.split(':')[1].split(',')[0])
+  RRwgt = float(line.split(':')[1].split(',')[1])
+  DRfac = float(DDwgt)/float(RRwgt)
+  ifpDR.close()
+
+  return DRfac

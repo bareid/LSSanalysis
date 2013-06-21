@@ -5,6 +5,7 @@ import copy
 import re
 import ximisc
 import xiell
+import wp
 import os
 
 ## note I determined best splitxi0 and splitxi2 in 
@@ -70,6 +71,85 @@ def wpcorrect(wpNNin, wpangin, splitwp, wpstart):
   rsigin = copy.deepcopy(wpangin.rsig[wpstart:])
   wpcorrwp[splitwp-wpstart:] = wpNNin.wp[splitwp:]
   wpcorr = wp.wp(rpwplist=[rsigin,wpcorrwp])
+  return wpcorr
+
+def debiasdataandcovwp(wpNNd, wpangd, wpangdhigh, wpangdlow, wpNNm, wpangm, wp012m, splitwp, wpstart,covstatfname,fname=None):
+  """
+  subtract the bias measured from the tiled mocks from the data, return a debiased combination.
+  print it to a file (fname) to be fed to bethalexie code in long format.
+  Also take in statistical covariance matrix and add two sources of systematics.
+  """
+  wpcorrdtmp = wpcorrect(wpNNd, wpangd, splitwp,wpstart)
+  wpcorrm = wpcorrect(wpNNm, wpangm, splitwp,wpstart)
+  wpdebiased = copy.deepcopy(wpcorrdtmp.wp)
+  mydelta = wp012m.wp[wpstart:] - wpcorrm.wp
+  print 'fractional wp correction:'
+  print mydelta/wpcorrdtmp.wp
+  wpdebiased = wpdebiased + mydelta
+
+  ## now the cov.
+  ## make sure this is the cov for the corrected statistic with same splits.
+  if(0==0):
+#  try:
+    cov = np.loadtxt(covstatfname)
+    assert len(cov[:,0]) == len(wpdebiased)
+    splitz = covstatfname.split('splitswp')[1].split('_')
+    assert len(splitz) >= 2
+    ilist=[]
+    for ss in splitz[:2]:
+      ilist.append(int(ss))
+    assert ilist[0] == splitwp
+    assert ilist[1] == wpstart
+
+    ndatacorr = len(wpcorrdtmp.wp)
+
+    diagstat = np.zeros(ndatacorr)
+    diagtot = np.zeros(ndatacorr)
+    diagvar = np.zeros(ndatacorr)
+    for i in range(len(diagstat)):
+      diagstat[i] = cov[i,i]
+    ## this must agree with wpcorrect assignmeents!
+    wpangdiffvar = (0.5*(wpangdhigh.wp-wpangdlow.wp))**2 
+    diagvar[0:splitwp-wpstart] = wpangdiffvar[wpstart:splitwp]
+    print 'wp ang high/low variance: ',diagvar/diagstat
+    print 'bias correction: ',mydelta
+    diagvar = diagvar + (mydelta.flatten())**2
+    print 'bias variance contribution: ',(mydelta.flatten())**2/diagstat
+    ## add it into the covarianace matrix.
+    for i in range(ndatacorr):
+      cov[i,i] += diagvar[i]
+      diagtot[i] = cov[i,i]
+    print 'total sys variance fraction',diagtot/diagstat
+  
+    ## make it a matrix.
+    cov = np.matrix(cov)
+    icov = cov.I
+  
+    fcovout = covstatfname+'.sys'
+    ## print the covariance and icov to new file.
+    printcov(cov,fcovout)
+    tmp = fcovout.split('/')
+    tmp[-1] = 'i'+tmp[-1]
+    ifcovout = '/'.join(tmp)
+    printcov(icov,ifcovout)
+  
+    wpfinal = wp.wp(rpwplist=[wpcorrdtmp.rsig,wpdebiased],icovfname=ifcovout)    
+    if fname is not None:
+      wpfinal.printwp(fname)
+    return wpfinal, cov
+
+  else:
+#  except:
+    print 'cov file name does not match input splits, returning None!'
+    wpfinal = wp.wp(rpwplist=[wpcorrdtmp.rsig,wpdebiased])    
+    if fname is not None:
+      ofp = open(fname,'w')
+      ofp.write("# ellmax = %d\n" % ((nell-1)*2))
+      for i in range(len(wpfinal.svec.flatten())):
+        ofp.write('%e %e\n' % (wpfinal.svec.flatten()[i], wpfinal.wp.flatten()[i]))
+      ofp.close()
+      return wpfinal, None
+  
 
 ## subtract the bias measured from the tiled mocks from the data, return a debiased combination.
 ## print it to a file to be fed to bethalexie code in long format.
@@ -205,7 +285,7 @@ def getpixlist(pixelfname,nsub):
 ## copy /home/howdiedoo/boss/bootstrapdr10v7/calcxi02bootcov.py for how to deal with some linear combination of NN and
 ## ang when deriving cov.
 def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 5000000, fbaseend='_rmax48deltalog10r',\
-               xiellorwp=0,rpimax=80.,splitwp=7,\
+               xiellorwp=0,rpimax=80.,splitwp=7,wpstart=1,\
                nell=3,binfile=None,rperpcut=-1.,smallRRcut=-1.,\
                dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
                splitxi0=5,splitxi2=6):
@@ -236,12 +316,22 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
   DRfacN_ang, fixRRdownN_ang = ximisc.getDRfactors(fbaseangtotN+fbaseend)
   DRfacS_ang, fixRRdownS_ang = ximisc.getDRfactors(fbaseangtotS+fbaseend)
   
+  if xiellorwp == 0:
+    splittag = 'splits%d_%d' % (splitxi0,splitxi2)
+  else:
+    splittag = 'splitwp%d_%d' % (splitwp,wpstart)
+  
 
   if binfile is not None:
     bintag = binfile.split('/')[-1].split('.')[0]
     covoutNN = 'covtotv7NN_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
     covoutang = 'covtotv7ang_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
-    covoutcorr = 'covtotv7corr_b%d_N%d_rebin-%s_splits%d_%d' % (nboot,nsub,bintag,splitxi0,splitxi2)
+    covoutcorr = 'covtotv7corr_b%d_N%d_rebin-%s_%s' % (nboot,nsub,bintag,splitxi0,splittag)
+  else:
+    covoutNN = 'covtotv7NN_b%d_N%d' % (nboot,nsub)
+    covoutang = 'covtotv7ang_b%d_N%d' % (nboot,nsub)
+    covoutcorr = 'covtotv7corr_b%d_N%d_%s' % (nboot,nsub,splittag)
+    
 
   if covtag is not None:
     covoutNN = covoutNN + '_%s' % covtag
@@ -277,20 +367,22 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
       xiinang = xiell.xiellfromDR(fbase_ang,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_ang,smallRRcut)
       xicorr = xicorrect(xiinNN, xiinang, splitxi0, splitxi2)
     else:  ## doing wp
-      xiinNN = wp.wpfromDR(fbase_NN,nell,DRfacinfo=DRinfo_NN,rpimax=rpimax,icovfname=icovfname)
-      xiinang = wp.wpfromDR(fbase_ang,nell,DRfacinfo=DRinfo_ang,rpimax=rpimax,icovfname=icovfname)
-      xicorr = wpcorrect(xiinNN,xiinang,splitwp)
+      xiinNN = wp.wpfromDR(fbase_NN,DRfacinfo=DRinfo_NN,rpimax=rpimax,icovfname=icovfname)
+      xiinang = wp.wpfromDR(fbase_ang,DRfacinfo=DRinfo_ang,rpimax=rpimax,icovfname=icovfname)
+      xicorr = wpcorrect(xiinNN,xiinang,splitwp,wpstart)
     ## tmp!  we tested to make sure we recovered the same correlation fxns as with old code.  Good!
     #tmpfname = "testing/testo%d" % ns
     #xiin.printxiellshort(tmpfname)
     if(ns == 0):
       if(xiellorwp == 0):
         ndata = xiinNN.ndata
+        ndatacorr = ndata
       else:
         ndata = len(xiinNN.wp)
+        ndatacorr = len(xicorr.wp)
       xilistNN = np.zeros([nsub,ndata],dtype='float128')
       xilistang = np.zeros([nsub,ndata],dtype='float128')
-      xilistcorr = np.zeros([nsub,ndata],dtype='float128')
+      xilistcorr = np.zeros([nsub,ndatacorr],dtype='float128')
     if(xiellorwp == 0):
       xilistNN[ns,:] = xiinNN.xilong
       xilistang[ns,:] = xiinang.xilong
@@ -334,10 +426,10 @@ def getbootcov(bootfile, workingdir, covtag=None, NNorang=0, NSortot=2, nboot = 
  
   xitotNN = np.zeros(ndata,dtype='float128')
   xitotang = np.zeros(ndata,dtype='float128')
-  xitotcorr = np.zeros(ndata,dtype='float128')
+  xitotcorr = np.zeros(ndatacorr,dtype='float128')
   CguessNN = np.zeros([ndata,ndata],dtype='float128')
   Cguessang = np.zeros([ndata,ndata],dtype='float128')
-  Cguesscorr = np.zeros([ndata,ndata],dtype='float128')
+  Cguesscorr = np.zeros([ndatacorr,ndatacorr],dtype='float128')
 
   for b in range(nboot):
     rr = np.random.random_integers(0,ntot-1,ntot)
