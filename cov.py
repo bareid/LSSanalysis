@@ -57,11 +57,17 @@ def getpixlist(pixelfname,nsub):
   return pixlist
 
 def checksymmetrycov(cov):
+  """
+  if you're sending a matrix object, bracket with np.array()
+  """
   for i in range(len(cov[:,0])):
     for j in range(len(cov[0,:])):
       assert cov[i,j] == cov[j,i]
 
 def printcov(cov,fname):
+  """
+  if you're sending a matrix object, bracket with np.array()
+  """
   ofp = open(fname,'w')
   for i in range(len(cov[:,0])):
     for j in range(len(cov[0,:])):

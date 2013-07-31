@@ -101,7 +101,7 @@ if __name__ == '__main__':
   ## these are fed upwards -- has the correct angular clustering upweighting file.
   catangfinal = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angzcutweightboss5002redo.1pw'}
 
-  catblank = {'dataf':,'ranf':,'outf':,'angweight':}
+  #catblank = {'dataf':,'ranf':,'outf':,'angweight':}
   
   ############### SET 2, dr10v7 N and S ###########################
   catNNdr10v7N = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-N-FBBRNN','angweight':None}

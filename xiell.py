@@ -3,15 +3,22 @@ import matplotlib.pyplot as plt
 import sys
 import copy
 import ximisc
+import cov
 
 class xiell:
-  def __init__(self,xiellfname=None,icovfname=None,ellmax=-1,sxilist=[],smincut=-1.,smaxcut=1.e12,skiprows=0,srescale=1.):
+  def __init__(self,xiellfname=None,icovfname=None,covfname=None,ellmax=-1,sxilist=[],smincut=-1.,smaxcut=1.e12,skiprows=0,srescale=1.,unbiasicovfac=1.,unbiascovfac=1.):
     """
     If you only want to read in some of the ell values, use ellmax.
     Otherwise reads in all the multipoles in the file.
-    Use smincut/smaxcut to remove outlying bins you dont' want to keep.
+    Use smincut/smaxcut to remove outlying bins you don't want to keep.
     srescale is to convert theory files in Mpc to Mpc/h.  Rescale value is h (0.7)"
+    unbiasicovfac (if not 1., float(ntot - p - 2)/float(ntot-1) from 0608064).
+    remember if you do that then cov and icov won't be inverses of each other!!
+    You can either do unbiasicovfac in your icov file (so no correction here)
+    but then your diagerrs might be wrong (but your chi2 will be correct).
+    Perhaps apply the inverse as a factor to cov?
     """
+#    print 'beth is it a problem that this module imports cov and has a local variable named cov?  should i change it?'
 #    try:
     if(0==0):
       if((xiellfname is not None) and (sxilist == [])):
@@ -22,7 +29,10 @@ class xiell:
         if(np.fabs(srescale-1.) > 1.0e-5):
           aa[:,0] = aa[:,0]*srescale
         s = aa[:,0]
+        stmp = (aa[:,0]).copy()
+        stmp1 = (aa[:,0]).copy()
         ikeep = np.where((s >= smincut) & (s <= smaxcut))[0]
+        nstart = len(s)
         aa = aa[ikeep,:]
         s = aa[:,0]
         ns = len(s)
@@ -68,7 +78,10 @@ class xiell:
           nell = nxi
           if(ellmax != -1 and (ellmax == 0 or ellmax == 2 or ellmax == 4)):
             nell = ellmax/2+1
-          
+          stmp = np.zeros(nell*len(stmp1))  ## needed for cov stuff later.
+          nstart = len(stmp) ## account for s values for each multipole
+          for iii in range(nell):
+            stmp[iii*len(aa[:,0]):(iii+1)*len(stmp1)] = stmp1[:]
           xi = np.zeros([nell,ns])
           svec = np.zeros([nell,ns])
           xilong = []
@@ -88,7 +101,7 @@ class xiell:
           xilong = np.array(xilong).flatten()
           self.xilong = xilong
           self.ndata = len(self.xilong)
-  
+          self.slong = svec.flatten()
         self.svec = svec
         self.xi = xi
         self.nell = nell
@@ -102,11 +115,13 @@ class xiell:
         self.nell = len(self.svec[:,0])
         self.ndata = len(self.xi.flatten())
         self.xilong = self.xi.flatten()
+        self.slong = self.svec.flatten()
         self.fname = None
         self.s0 = self.svec[0,:]
         self.xi0 = self.xi[0,:]
-        self.s2 = self.svec[1,:]
-        self.xi2 = self.xi[1,:]
+        if(self.nell > 1):
+          self.s2 = self.svec[1,:]
+          self.xi2 = self.xi[1,:]
 
       else:
         assert 0==1
@@ -138,19 +153,69 @@ class xiell:
         self.weight = 1.0
 
     if(self is not None):
-      if(icovfname is None):
+      if(icovfname is None and covfname is None):
         self.DorT = 1
       else:
         self.DorT = 0
-        icov = np.matrix(np.loadtxt(icovfname))
-        self.icov = icov
-        assert len(icov[:,0]) == self.ndata
+        if(icovfname is not None):
+          icov = np.matrix(np.loadtxt(icovfname))
+          self.icov = icov
+          cov = icov.I
+          self.cov = cov
+        else:
+          assert (covfname is not None)
+          ### deal with antonio cov file format.
+          covtmp = np.loadtxt(covfname)
+          xshape, yshape = covtmp.shape
+          if(yshape == 3):
+            if(xshape == 3):
+              print 'from current code, this shape is ambiguous.  Fix the code before proceeding!'
+              self = None
+              sys.exit(1)
+            cov = np.loadtxt(covfname,usecols=[2],unpack=True)
+            if sxilist == []: 
+              assert (len(cov) == (self.ndata)**2) | (len(cov) == nstart**2)
+            else:
+              assert (len(cov) == (self.ndata)**2)
+            cov = np.matrix(cov.reshape(int((len(cov)**0.5)), int((len(cov)**0.5))))
+          else: # just read in regular matrix.
+            cov = np.matrix(np.loadtxt(covfname))
+            if sxilist == []: 
+              assert (len(cov) == (self.ndata)) | (len(cov) == nstart)
+            else:
+              assert (len(cov) == (self.ndata))
+          self.cov = cov
+          self.icov = cov.I
+        if(len(cov[:,0]) > self.ndata):  ## need to select desired rows/cols from the covariance matrix.
+          cov = np.array(cov)
+          x, y = np.meshgrid(stmp,stmp)
+          ikeep = np.where((x >= smincut) & (x <= smaxcut) & (y >= smincut) & (y <= smaxcut))
+          assert (x[ikeep] >= smincut).all()
+          assert (y[ikeep] >= smincut).all()
+          assert (x[ikeep] <= smaxcut).all()
+          assert (y[ikeep] <= smaxcut).all()
+          assert len(cov[ikeep]) == (self.ndata)**2
+          cov = cov[ikeep].reshape(self.ndata,self.ndata)
+          cov = np.matrix(cov)
+          self.cov = cov
+          self.icov = cov.I
+          assert len(self.cov[:,0]) == self.ndata 
+##  apply unbiasicovfac.  remember now icov != inverse of cov !!!
+        if np.fabs(unbiasicovfac - 1.) > 2.0e-6 and np.fabs(unbiascovfac - 1.) > 2.0e-6:
+          print 'only one unbiasfac can be set.'
+          self = None
+          sys.exit(1)
+        self.icov = self.icov*unbiasicovfac
+        self.unbiasicovfac = unbiasicovfac
+        self.cov = self.cov*unbiascovfac
+        self.unbiascovfac = unbiascovfac
+
 ## compute diag errors.
-        cov = icov.I
         diagerr = np.array([np.sqrt(cov[i,i]) for i in range(self.ndata)])
         self.diagerr = diagerr
         self.diagerrxi0 = diagerr[0:len(self.xi0)]
-        self.diagerrxi2 = diagerr[len(self.xi0):len(self.xi0)+len(self.xi2)]
+        if(self.nell > 1):
+          self.diagerrxi2 = diagerr[len(self.xi0):len(self.xi0)+len(self.xi2)]
 
 
   def __str__(self):
@@ -362,6 +427,60 @@ class xiell:
     del tmp2
     return ff, ax
 
+  def makecosmoxi2dinput(self,outfbase,hfid=0.7):
+    logorlinear = -1
+    ## check for log or linear.
+    ds0 = (self.s0[1:] - self.s0[:-1]).mean()
+
+    if (np.fabs(self.s0[1:]-self.s0[:-1]-ds0) < 2.0e-4).all():
+      if (self.nell > 1):
+        ds2 = (self.s2[1:] - self.s2[:-1]).mean()
+        if (np.fabs(self.s2[1:]-self.s2[:-1]-ds2) < 2.0e-4).all():
+          logorlinear = 1
+      else:
+        logorlinear = 1
+
+    ## check for log or linear xi0 and xi2
+    dlogs0 = (np.log(self.s0[1:]/self.s0[:-1])).mean()
+    if (np.fabs(np.log(self.s0[1:]/self.s0[:-1])-dlogs0) < 2.0e-4).all():
+      if (self.nell > 1):
+        dlogs2 = (np.log(self.s2[1:]/self.s2[:-1])).mean()
+        if (np.fabs(np.log(self.s2[1:]/self.s2[:-1])-dlogs2) < 2.0e-4).all():
+          logorlinear = 0
+      else:
+        logorlinear = 0
+
+    if logorlinear == -1:
+      print 'wacky binning, make your own bin file by hand.'
+      return None
+
+    ds0 = ds0/hfid
+    if(self.nell > 1):
+      ds2 = ds2/hfid
+
+    ofp = open(outfbase+".bin",'w')
+    ofpd = open(outfbase+".dat",'w')
+    ofp.write("# hfid = %.6e\n" % (hfid))
+
+    for i in range(len(self.s0)):
+      if logorlinear == 1:
+        ofp.write('%.7e %.7e %.7e\n' % (self.s0[i]/hfid, self.s0[i]/hfid-0.5*ds0,  self.s0[i]/hfid+0.5*ds0))
+      else:
+        ofp.write('%.7e %.7e %.7e\n' % (self.s0[i]/hfid, self.s0[i]/hfid*np.exp(-0.5*dlogs0),  self.s0[i]/hfid*np.exp(0.5*dlogs0)))
+      ofpd.write("%15.7e %15.7e " % (self.s0[i]/hfid, self.xi0[i]))
+      if(self.nell > 1):
+        ofpd.write("%16.7e " % (self.xi2[i]))
+      else:
+        ofpd.write("%16.7e\n" % (0.0))
+
+    ofp.close()
+    ofpd.close()
+    if(self.nell == 1):
+      return 0
+    else:
+      assert (np.fabs(s0 - s2) < 2.0e-4).all()
+    return 0
+
   #### proper indentation -- cannot be part of the class.
   ## copying from boss/zdistvXlogbinsompcleverLSnew/xitruegenericallscalesRRdown.py for this function.
   ## and also boss/zdistvXlogbinsompcleverLSsmallscale/rebinxismugenericcutsmallscale.py
@@ -561,6 +680,143 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
       xiindx += 1
 
   return xiell(xiellfname=fDR,sxilist=[svec, xi],icovfname=icovfname)
+
+## stealing code from publicly released code
+## http://www.sdss3.org/science/boss_publications.php
+## also on howdiedoo ~/dr9reidetalpublic
+
+def invcovcombine(xia,xib,outfilebase,xi0istart=None,xi0iend=None,xi2istart=None,xi2iend=None,unbiasicovfac=1.,unbiascovfac=1.):
+  """
+  take two correlation functions and combine them with inverse cov weighting,
+  using only a subset of bins if desired.
+  set istart,iend = -1 if you want to exclude that multipole
+  first bin is indexed by 0
+  to include all bins, use: combine.py 0 len(xia.xi0)-1 0 len(xia.xi2)-1
+  or leave default None (will set to full length).
+  cov and xi will be written using outfilebase, then read back in to xiell to return an object.
+  unbias factors not written to the files, just passed along to the xiell.xiell call.
+  """
+
+  print 'this function was written on july 29 and kind of tested against.'
+  print 'see /home/howdiedoo/boss/cosmoxi2dfitalphadr11/data/ladodr11v1/combinestests'
+  print 'you should still use it with caution.'
+
+  if (len(xia.xi0) != len(xib.xi0)):
+    print 's0 binnings dont agree, returning none!'
+    return None
+  if (np.fabs(xia.s0 - xib.s0) > 2.0e-6).any():
+    print 's0 binnings dont agree, returning none!'
+    return None
+  if (xi2istart is not None) and xi2istart >= 0: ## that means you want to use xi2
+    if (np.fabs(xia.s2 - xib.s2) > 2.0e-6).any():
+      print 's2 binnings dont agree, returning none!'
+      return None
+
+  ## everything is coded currently so that xi0 and xi2 binning is the same, so test for this.
+  if (xi2istart is not None) and xi2istart >= 0: ## that means you want to use xi2
+    ellmax = 2
+    if len(xia.s0) != len(xia.s2):
+      print 's0 and s2 are different, returning none!'
+      return None
+    if (np.fabs(xia.s0 - xia.s2) > 2.0e-6).all():
+      print 's0 and s2 are different, returning none!'
+      return None
+  else:
+    ellmax = 0    
+
+  imin = 0
+  imax = len(xia.xi0)-1
+  nbinstot = imax - imin + 1
+  assert nbinstot == len(xia.xi0)
+  assert nbinstot == len(xia.xi2)
+
+  if(xi0iend == -1):
+    assert xi0istart == -1
+    nxi0 = 0
+  else:
+    nxi0 = xi0iend-xi0istart+1
+  if((xi2iend is None) or (xi2iend == -1)):
+    assert xi2istart == -1
+    nxi2 = 0
+  else:
+    nxi2 = xi2iend-xi2istart+1
+
+  ncuttot = nxi0 + nxi2
+
+  mynell = 1
+  if nxi2 > 0:
+    mynell = 2
+
+  if(xi0istart == -1):
+    xi0iend = -1
+  if(xi2istart == -1):
+    xi2iend = -5*nbinstot
+
+  if xi0istart == -1 or xi0istart is None:
+    print 'xi2 only not currently supported, need to rewrite xiell.xiell() for that!'
+    return None
+
+  ncov1d = len(xia.cov[:,0])
+  if ncov1d != nbinstot*2 and nxi2 > 0:
+    print 'cov make no sense, missing xi2 in cov?',ncov1d,nbinstot,nbinstot*2
+    return None
+  if ncov1d != nbinstot*2 and ncov1d != nbinstot:
+    print 'cov make no sense, bins not aligned?',ncov1d,nbinstot,nbinstot*2
+    return None
+
+  ## do several cases. 
+  ## case 1: cov is xi0 only
+
+  ## this part copied from combine.py
+  
+  scut = np.zeros(ncuttot)
+  xiacut = np.zeros(ncuttot)
+  xibcut = np.zeros(ncuttot)
+  covacut = np.zeros([ncuttot,ncuttot])
+  covbcut = np.zeros([ncuttot,ncuttot])
+  
+  ## picks out the relevant rows/columns from xi and cov
+  i1=0
+  for j1 in range(ncov1d):
+    if(not (((j1 >= xi0istart) and (j1 <= xi0iend)) or ((j1-nbinstot >= xi2istart) and (j1-nbinstot <= xi2iend)))):
+      continue
+    if(j1 < nbinstot):
+      scut[i1] = xia.s0[j1]
+      xiacut[i1] = xia.xi0[j1]
+      xibcut[i1] = xib.xi0[j1]
+    else:
+      scut[i1] = xia.s2[j1-nbinstot]
+      xiacut[i1] = xia.xi2[j1-nbinstot]
+      assert xia.xilong[j1] == xia.xi2[j1-nbinstot]
+      xibcut[i1] = xib.xi2[j1-nbinstot]
+      assert xib.xilong[j1] == xib.xi2[j1-nbinstot]
+    i2=0
+    for j2 in range(ncov1d):
+      if(not (((j2 >= xi0istart) and (j2 <= xi0iend)) or ((j2-nbinstot >= xi2istart) and (j2-nbinstot <= xi2iend)))):
+        continue
+      covacut[i1,i2] = xia.cov[j1,j2]
+      covbcut[i1,i2] = xib.cov[j1,j2]
+      i2 += 1
+    i1 += 1
+
+  icovacut = (np.matrix(covacut)).I
+  icovbcut = (np.matrix(covbcut)).I
+  icovtot = icovacut + icovbcut
+  covtot = (icovtot).I
+  xitotcut = covtot*(icovacut*np.transpose(np.matrix(xiacut)) + icovbcut*np.transpose(np.matrix(xibcut)))
+
+  xitotcut = np.array(xitotcut[:,0])
+
+  cov.printcov(np.array(covtot),outfilebase+'.cov')
+  cov.printcov(np.array(icovtot),outfilebase+'.icov')
+  icovfname = outfilebase+'.icov'
+  ## write the cov to a file in the usual format, and read it back in so that everything is exactly reproducible.
+  xinew = xiell(sxilist=[scut.reshape(mynell,len(scut)/mynell),xitotcut.reshape(mynell,len(xitotcut)/mynell)],icovfname=icovfname,unbiasicovfac=unbiasicovfac, unbiascovfac=unbiascovfac)
+
+  xinew.printxielllong(outfilebase+'.xi')
+
+  return xinew 
+   
 
 
 if __name__ == '__main__':

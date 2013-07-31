@@ -307,7 +307,7 @@ class xi2d:
       ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
     return ff, ax
     
-  def makedensityplot(self,ax=None,span=None,remapopt=1):
+  def makedensityplot(self,ax=None,span=None,remapopt=1,fontsize=16,fsize=6):
     """
     Make a density plot owned by this object if ax=None, returns the axis.
     Otherwise, just add the density plot to input axis ax and beautify.
@@ -316,7 +316,7 @@ class xi2d:
     """
     if ax is None:
 ## we want aspect ratio to be 1.!!
-      ff = plt.figure(figsize=[6,6])
+      ff = plt.figure(figsize=[fsize,fsize])
       ax=ff.add_subplot(1,1,1)
 
     self.adddensity(ax,remapopt)
@@ -324,8 +324,8 @@ class xi2d:
       span = [-self.rsig.max(), self.rsig.max(), -self.rpi.max(), self.rpi.max()]
 
     ax.axis(span)
-    ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
-    ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
+#    ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
+#    ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
     return ff, ax
 
 if __name__ == "__main__":
