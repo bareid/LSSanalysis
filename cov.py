@@ -171,6 +171,25 @@ def getbootcov(bootfile, workingdir, covtag, NNorang=0, NSortot=2, nboot = 50000
 #  printcov(invCguess,"icov.tmp")
   return Cguess, invCguess
 
+def invcovsubsample(icov,onedi):
+  """
+  inverts icov to get cov, subsamples elts of cov to the ones you want, and reinverts.  
+  Passes back cov, icov pair.
+  onedi should be a numpy array of the elements of cov you want to keep.  They must be ordered/sorted and unique!
+  Unless you're mixing up your data vector order compared to the cov.  We will not handle that case for now.
+  """
+  icov = np.matrix(icov)
+  tmpcov = np.array(icov.I)
+  ## make sure the elements of onedi are ordered.
+  assert (onedi[:-1] < onedi[1:]).all()
+  assert len(tmpcov[:,0]) >= len(onedi)
+  mx, my = np.meshgrid(onedi,onedi)
+  newcov = np.matrix(tmpcov[(mx,my)])
+  newicov = newcov.I
+  assert newcov.shape == (len(onedi), len(onedi))
+  assert newicov.shape == (len(onedi), len(onedi))
+  return newcov, newicov
+
 def tmpcompare():
   for i in range(200):
     f1 = "testing/testo%d" % i

@@ -43,7 +43,8 @@ if __name__ == '__main__':
     print 'task = 3: do wp counts.'
     print 'whichset: which data/mock/theory catalogs you want to work on.'
     print 'whichset = 0: dr10v7'
-    print 'whichset = 1: mocks'
+    print 'whichset = 1: 5002mocks'
+    print 'whichset = 2: 5003mocks'
     sys.exit(1)
 
   fastqopt = 0
@@ -53,20 +54,25 @@ if __name__ == '__main__':
   whichset = int(sys.argv[3])
 
   assert whichmachine >= 0 and whichmachine <= 2
-  assert whichset >= 0 and whichset <= 1
+  assert whichset >= 0 and whichset <= 2
 
   ## data dir locations.
   ## HH = howdie, RR = riemann, NN = nersc.
 
   if(whichset == 0):
     dHH = "/home/howdiedoo/boss/mksamplecatslatestdr10/"
-    dRR = None ## is it there?
-    dNN = "/scratch/scratchdirs/bareid/boss/mksamplecatslatestdr10/v7/threed/"
+    dRR = "/home/bareid/boss/mksamplecatslatestdr10/"
+    dNN = "/scratch/scratchdirs/bareid/boss/mksamplecatslatestdr10/"
 
   if(whichset == 1):
     dHH = "/home/howdiedoo/boss/tiledmockboss5002redo/"
     dRR = "/data/bareid/tiledmockboss5002redo/"
     dNN = "/scratch/scratchdirs/bareid/tiledmockboss5002redo/"
+
+  if(whichset == 2):
+    dHH = "/home/howdiedoo/boss/tiledmockboss5003/"
+    dRR = "/data/bareid/tiledmockboss5003/"
+    dNN = "/scratch/scratchdirs/bareid/tiledmockboss5003/"
 
   ## working directory base.
   wHH = "/home/howdiedoo/boss/"
@@ -90,20 +96,38 @@ if __name__ == '__main__':
   prelist = [preambleHH, preambleRR, preambleNN]
   postlist = [postambleHH, postambleRR, postambleNN]
 
-  ############### SET 1, MOCKS ###########################
-  ## data, random, fout, angweight pairs.
-  cat012 = {'dataf':'cmass-boss5002sector-FBBRv2icoll012.dat','ranf':'randoms-boss5002-icoll012-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2icoll012','angweight':None}
-  catNN = {'dataf':'cmass-boss5002sector-FBBRv2-NN.dat','ranf':'randoms-boss5002-NN-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-NN','angweight':None}
-  ## these are fed to angular clustering calculator only.
-  catangtest = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angweightboss5002redo.1pw'}
-  catangzcut = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-angzcut','angweight':'angzcutweightboss5002redo.1pw'}
-
-  ## these are fed upwards -- has the correct angular clustering upweighting file.
-  catangfinal = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angzcutweightboss5002redo.1pw'}
-
-  #catblank = {'dataf':,'ranf':,'outf':,'angweight':}
+  if(whichset == 1):
+ 
+    ############### SET 1, MOCKS ###########################
+    ## data, random, fout, angweight pairs.
+    cat012 = {'dataf':'cmass-boss5002sector-FBBRv2icoll012.dat','ranf':'randoms-boss5002-icoll012-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2icoll012','angweight':None}
+    catNN = {'dataf':'cmass-boss5002sector-FBBRv2-NN.dat','ranf':'randoms-boss5002-NN-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-NN','angweight':None}
+    ## these are fed to angular clustering calculator only.
+    catangtest = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angweightboss5002redo.1pw'}
+    catangzcut = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-angzcut','angweight':'angzcutweightboss5002redo.1pw'}
   
-  ############### SET 2, dr10v7 N and S ###########################
+    ## these are fed upwards -- has the correct angular clustering upweighting file.
+    catangfinal = {'dataf':'cmass-boss5002sector-FBBRv2-ang.dat','ranf':'randoms-boss5002-ang-vetoed.dat','outf':'outputtiledmockboss5002redo/cmass-boss5002sector-FBBRv2-ang','angweight':'angzcutweightboss5002redo.1pw'}
+  
+    #catblank = {'dataf':,'ranf':,'outf':,'angweight':}
+
+  if(whichset == 2):
+    ############### SET 2, 5003MOCKS ###########################
+    ## data, random, fout, angweight pairs.
+    cat012 = {'dataf':'cmass-boss5003sector-icoll012.dat','ranf':'randoms-boss5003-icoll012-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-icoll012','angweight':None}
+    cat012zcut = {'dataf':'cmass-boss5003sector-icoll012.dat','ranf':'randoms-boss5003-icoll012-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-icoll012zcut','angweight':None}
+    catNN = {'dataf':'cmass-boss5003sector-FBBRv2-NN.dat','ranf':'randoms-boss5003-NN-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-FBBRv2-NN','angweight':None}
+    ## these are fed to angular clustering calculator only.
+    catangtest = {'dataf':'cmass-boss5003sector-FBBRv2-ang.dat','ranf':'randoms-boss5003-ang-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-FBBRv2-ang','angweight':'angweightboss5003.1pw'}
+    catangzcut = {'dataf':'cmass-boss5003sector-FBBRv2-ang.dat','ranf':'randoms-boss5003-ang-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-FBBRv2-angzcut','angweight':'angzcutweightboss5003.1pw'}
+  
+    ## these are fed upwards -- has the correct angular clustering upweighting file.
+    catangfinal = {'dataf':'cmass-boss5003sector-FBBRv2-ang.dat','ranf':'randoms-boss5003-ang-vetoed.dat','outf':'outputtiledmockboss5003/cmass-boss5003sector-FBBRv2-ang','angweight':'angzcutweightboss5003.1pw'}
+  
+    #catblank = {'dataf':,'ranf':,'outf':,'angweight':}
+  
+  
+  ############### SET 0, dr10v7 N and S ###########################
   catNNdr10v7N = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRNN.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-N-FBBRNN','angweight':None}
   catangdr10v7N = {'dataf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRang.txt','ranf':'v7/threed/collidedBR-collate-cmass-dr10v7-N-FBBRang.ran.txt','outf':'outputmksamplelatestdr10v7/collidedBR-collate-cmass-dr10v7-N-FBBRang','angweight':'angweightsNmar1.1pw'}
 
@@ -124,6 +148,13 @@ if __name__ == '__main__':
   
   ## ang jobs for mocks.
   ############### SET 1, MOCKS ###########################
+  jobang012 = {'name': 'ang012', 'dname': 'zdistvXlogbinsompcleverLSangfaster', 'whichcat': cat012, \
+         'fmtstring': '%s./xiLSlogbins %s %s 4 4 %d %s > %s%s',  'fmttype':0, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+  jobang012zcut = {'name': 'ang012zcut', 'dname': 'zdistvXlogbinsompcleverLSangfaster', 'whichcat': cat012zcut, \
+         'fmtstring': '%s./xiLSlogbins %s %s 4 4 %d %s 0.43 0.7 0 > %s%s',  'fmttype':0, 'DRlist':[1,2,3], \
+         'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+
   jobang1 = {'name': 'ang1', 'dname': 'zdistvXlogbinsompcleverLSangfaster', 'whichcat': catangtest, \
          'fmtstring': '%s./xiLSlogbins %s %s 4 4 %d %s > %s%s',  'fmttype':0, 'DRlist':[1,2,3], \
          'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
@@ -152,6 +183,15 @@ if __name__ == '__main__':
   jobwpang = {'name': 'wpang_boss5002', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catangfinal, \
          'fmtstring': '%s./xiLSwpangweight %s %s 2 %d %s %s > %s%s ', 'fmttype':1, 'DRlist':[1,2,3], \
          'nprocRR': 8, 'nprocNN':24, 'jobtimeRR':'23:59:00','jobtimeNN':'23:59:00'}
+
+  if(whichset == 2):  ## everything else good, just fix the names.
+    jobwp012['name'] = 'wp012_boss5003'
+    jobwpNN['name'] = 'wpNN_boss5003'
+    jobwpang['name'] = 'wpang_boss5003'
+
+    jobxiell012['name'] = 'xiell012_boss5003'
+    jobxiellNN['name'] = 'xiellNN_boss5003'
+    jobxiellang['name'] = 'xiellang_boss5003'
   
   ############### SET 2, dr10v7 N and S ###########################
   jobwpNN_dr10v7N = {'name': 'wpNN_dr10v7N', 'dname': 'zdistvXlogbinsompcleverLSsmallscale/', 'whichcat': catNNdr10v7N, \
@@ -177,8 +217,8 @@ if __name__ == '__main__':
   if(task==0):
     
     ## jobs in this list must have the same format.
-    if(whichset == 1):
-      joblist = [jobang1, jobang1zcut]
+    if(whichset == 1 or whichset == 2):
+      joblist = [jobang012, jobang012zcut, jobang1, jobang1zcut]
     
 
   if(task == 1):
@@ -189,12 +229,12 @@ if __name__ == '__main__':
 
   ## task 2: run xiell.
   if(task == 2):
-    if(whichset == 1):
+    if(whichset == 1 or whichset == 2):
       joblist = [jobxiell012, jobxiellNN, jobxiellang]
 
   ## task 3: run wp
   if(task == 3):
-    if(whichset == 1):
+    if(whichset == 1 or whichset == 2):
       joblist = [jobwp012, jobwpNN, jobwpang]
     else:
       joblist = [jobwpNN_dr10v7N, jobwpang_dr10v7N, jobwpNN_dr10v7S, jobwpang_dr10v7S]
@@ -205,11 +245,16 @@ if __name__ == '__main__':
 
   for jj in joblist:
     filesh = workingdir+jj['dname']+'/'+jj['name']+'.sh'
-#      print 'sh is going here:',filesh
+    print 'sh is going here:',filesh
     ofpsh = open(filesh,'w')
     dfilename = ddir+jj['whichcat']['dataf']
     rfilename = ddir+jj['whichcat']['ranf']
     outfilename = workingdir+jj['dname']+'/'+jj['whichcat']['outf']
+    outdir = workingdir+jj['dname']+'/' + '/'.join(jj['whichcat']['outf'].split('/')[:-1])+'/'
+    print 'i will create this outdir if it doesnt exist'
+    print outdir
+    os.system('mkdir '+outdir)
+    print 'made!'
     if(whichmachine == 0):
       ofpsh.write('#!/bin/bash\n')
     if(whichmachine == 1):
