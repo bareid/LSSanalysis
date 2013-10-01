@@ -485,6 +485,23 @@ class xiell:
   ## copying from boss/zdistvXlogbinsompcleverLSnew/xitruegenericallscalesRRdown.py for this function.
   ## and also boss/zdistvXlogbinsompcleverLSsmallscale/rebinxismugenericcutsmallscale.py
 
+def weightsum(xiinlist,wgtlist):
+  """
+  returns a new xiell instance whose xiell values are the weighted sum of 
+  the values in the xiinlist. 
+  """
+  try:
+    ximean = copy.deepcopy(xiinlist[0].xi)
+    ximean = ximean*wgtlist[0]
+    wgtsum = wgtlist[0]
+    for i in range(1,len(xiinlist)):
+      ximean += xiinlist[i].xi*wgtlist[i]
+      wgtsum += wgtlist[i]
+    ximean = ximean/wgtsum
+    return xiell(sxilist=[xiinlist[0].svec, ximean])
+  except:
+    return None
+
 
 ## has this function been tested??
 
