@@ -13,6 +13,12 @@ def getflip(xi,n1d):
       xiflip[i,j] = xi[j,i]
   return xiflip
 
+def inverseremapf(xiremapval,myxi):
+  return myxi.min()*10**(xiremapval*np.log10(myxi.max()/myxi.min()))
+
+def remapf(xival,myxi):
+  return np.log10(xival/myxi.min())/np.log10(myxi.max()/myxi.min())
+
 class xi2d:
   def __init__(self,xi2dfname):
     try:
@@ -262,7 +268,7 @@ class xi2d:
   ## things look screwy if you don't symmetrize, so we don't allow unsymmetrized for now.
   ## remap options do some sort of transformation on xi to make the contours nicer.
   ## so far 
-  def adddensity(self,ax,remapopt=1):
+  def adddensity(self,ax,fig,remapopt=1):
     """
     Make a density plot.
     remapopt = 0 does nothing to xi
@@ -271,14 +277,17 @@ class xi2d:
     """
     rsigS1d, rpiS1d, xiS, n1dS = self.symmetrize(1)
     if(remapopt == 1):
-      xiremap = (np.log10(xiS)/np.log10(self.xi.max()/self.xi.min()))
+#      xiremap = (np.log10(xiS)/np.log10(self.xi.max()/self.xi.min()))
+      xiremap = remapf(xiS,xiS) 
     else:
       xiremap = xiS
     xiflip = getflip(xiremap.reshape(n1dS,n1dS),n1dS)
     xl=self.rsig.max()
     yl=self.rpi.max()
-    im = ax.imshow(xiflip,extent=[-xl,xl,-yl,yl])
-    return im 
+    cax = ax.imshow(xiflip,extent=[-xl,xl,-yl,yl])
+    return cax
+
+
 
 
   def makecontourplot(self,ax=None,symmetrizeopt=1,clevlist=[],color='k',span=None):
@@ -307,7 +316,7 @@ class xi2d:
       ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=16)
     return ff, ax
     
-  def makedensityplot(self,ax=None,span=None,remapopt=1,fontsize=16,fsize=6):
+  def makedensityplotold(self,ax=None,span=None,remapopt=1,fontsize=16,fsize=6):
     """
     Make a density plot owned by this object if ax=None, returns the axis.
     Otherwise, just add the density plot to input axis ax and beautify.
@@ -315,7 +324,6 @@ class xi2d:
     remapopt = 0 does nothing, remapopt = 1 takes a log of xi.
     """
     if ax is None:
-## we want aspect ratio to be 1.!!
       ff = plt.figure(figsize=[fsize,fsize])
       ax=ff.add_subplot(1,1,1)
 
@@ -324,6 +332,46 @@ class xi2d:
       span = [-self.rsig.max(), self.rsig.max(), -self.rpi.max(), self.rpi.max()]
 
     ax.axis(span)
+#    ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
+#    ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
+    return ff, ax
+
+  def makedensityplot(self,ff=None,ax=None,span=None,remapopt=1,fontsize=16,fsize=6, \
+                 showColorBar=False,\
+                 cticksarr=np.array([0.021,0.2,2,20]),\
+                 ctickslbl=['0.02','0.2','2','20']):
+    """
+    Make a density plot owned by this object if ax=None, returns the axis.
+    Otherwise, just add the density plot to input axis ax and beautify.
+    Optional span = [xmin, xmax, ymin, ymax]
+    remapopt = 0 does nothing, remapopt = 1 takes a log of xi.
+    """
+    if ax is None:
+## we want aspect ratio to be 1.!!
+      ff = plt.figure(figsize=[fsize+2,fsize]); ax = ff.add_subplot(111,aspect='equal')
+#    else:
+#      print 'w ax input unwritten'
+#      return None
+
+    cax = self.adddensity(ax,remapopt)
+    if span is None:
+      span = [-self.rsig.max(), self.rsig.max(), -self.rpi.max(), self.rpi.max()]
+
+    ax.axis(span)
+
+    if showColorBar is True:
+      if remapopt == 1 and cticksarr is not None:
+        print 'remap cticks to ', cticksarr, remapf(cticksarr,self.xi)
+        cbar = ff.colorbar(cax, ticks=remapf(cticksarr,self.xi))
+        if len(ctickslbl) == len(cticksarr):
+          cbar.ax.set_yticklabels(ctickslbl)
+      if remapopt != 1 and cticksarr is not None:
+        cbar = ff.colorbar(cax, ticks=cticksarr)
+        if len(ctickslbl) == len(cticksarr):
+          cbar.ax.set_yticklabels(ctickslbl)
+      if cticksarr is None:
+        cbar = ff.colorbar()
+
 #    ax.set_xlabel(r'$r_{\sigma} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
 #    ax.set_ylabel(r'$r_{\pi} \, [h^{-1} {\rm Mpc}]$',fontsize=fontsize)
     return ff, ax

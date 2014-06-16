@@ -23,6 +23,14 @@ def downsample1d(a,dfac):
   adown = adown/float(dfac)
   return adown
 
+def downsample1dvweight(a,v,dfac):
+  adown = []
+  for i in range(len(a)/dfac):
+    aval = (a[i*dfac:(i+1)*dfac]*v[i*dfac:(i+1)*dfac]).sum()
+    adown.append(aval)
+  adown = np.array(adown)
+  return adown
+
 def legendre(n,x):
   if(n==0):
     return 1
@@ -157,3 +165,26 @@ def getDRfactoronly(fbase):
   ifpDR.close()
 
   return DRfac
+
+def comparecovsclose(a,b,diagfracacc=0.05,offdiagnormcovabsacc=0.1):
+  adiag = getmatrixdiag(a)
+  bdiag = getmatrixdiag(b)
+
+  anorm = getmatrixnorm(a) 
+  bnorm = getmatrixnorm(b) 
+
+  xx1d = np.where(np.fabs(bdiag/adiag-1.) > diagfracacc)[0]
+  print len(xx1d), 'of',len(adiag), 'exceed the diagonal fractional accuracy limit'
+  xx2d = np.where(np.fabs(bnorm - anorm) > offdiagnormcovabsacc)
+  print len(xx2d[0]), 'of',len(anorm.flatten()), 'exceed the diagonal fractional accuracy limit'
+  if len(xx2d[0]) > 0:
+    print 'heres an example!',anorm[xx2d[0][0], xx2d[1][0]], bnorm[xx2d[0][0], xx2d[1][0]]
+
+  if len(xx1d) > 0 or len(xx2d[0]) > 0:
+    return 1
+  else:
+    return 0
+
+
+  
+

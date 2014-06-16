@@ -18,6 +18,8 @@ global setup
 global dm21sqr, dm31sqr
 global Smnumin  #array of size 2. indexed by NorI
 
+global rhocrit
+
 setup = 0
 onuh2const = 7./8.*(4./11.)**(4./3.)
 print 'onuhu2 conversion!',onuh2const
@@ -35,9 +37,109 @@ DH = 2997.92458
 kBoltzmann = 8.6173324e-5
 myc1 = 120./7./(np.pi)**4.
 
+## stuff needed to compute critical density of universe.
+Mpc = 3.08567758e22
+G = 6.67384e-11   #  m**3 kg** -1 s **-2
+Msun = 1.9891e30  # kg
+## critical density = 3.0*1.e10/G*Mpc/Msun/8./np.pi
+rhocrit = 3.0*1.e10/G*Mpc/Msun/8./np.pi
+
 def printsetup():
   global setup
   print setup
+
+#############################
+## begin class Pk        ####
+#############################
+
+## copying from cosmoxi2d/linearpk.c/getpkspline.
+
+def Wtilde(x):
+  """
+  Fourier Transform of top-hat window fxn.
+  This is written as a scalar function, could be vectorized.
+  """
+  xsqr = x*x
+  if(x < 0.1):
+    return (1.-xsqr/10.+xsqr*xsqr/280.-xsqr*xsqr*xsqr/15120.)
+  else:
+    return(3.*(np.sin(x)-x*np.cos(x))/(x*xsqr))
+
+
+class linPk:
+  def __init__(self,pkfname=None,ki=None,pki=None,z=0.,pkamprescale=1.):
+    """
+    Either input a camb file to read in, or a list of k and pk.  We set up pk interpolator.
+    """
+    if pkfname is not None:
+      self.k, self.pk = np.loadtxt(pkfname,unpack=True,usecols=[0,1])
+      self.pkfname = pkfname
+    else:
+      self.k = ki
+      self.pk = pki
+      self.pkfname = None
+    if self.k is None or self.pk is None:
+      self = None
+      return None
+    if len(self.k) != len(self.pk):
+      self = None
+      return None
+
+    if np.fabs(pkamprescale - 1.) > 2.0e-3:
+      self.pk = self.pk*pkamprescale
+
+    self.npk = len(self.k)
+    self.lnk = np.log(self.k)
+    self.lnpk = np.log(self.pk)
+    #self.pkinterp = interp.interp1d(self.lnk,self.lnpk,kind='cubic')
+    ## equivalent to this!! but now we can have derivatives.  it's cubic by default.
+    self.pkinterp = interp.InterpolatedUnivariateSpline(self.lnk,self.lnpk)
+    self.nhigh = self.pkinterp.derivatives(self.lnk[-1])[1]
+    self.nlow = self.pkinterp.derivatives(self.lnk[0])[1]
+
+  def eval(self,kvec):
+    lnkvec = np.log(np.fabs(kvec))
+    try:
+      len(lnkvec)
+    except:
+      lnkvec = np.array([lnkvec])
+
+    assert len(lnkvec) > 0
+    pkvec = np.zeros(len(lnkvec))
+    xlow = np.where(lnkvec <= self.lnk[0])[0]
+    xhigh = np.where(lnkvec >= self.lnk[-1])[0]
+    x = np.where((lnkvec > self.lnk[0]) & (lnkvec < self.lnk[-1]))
+    pkvec[x] = np.exp(self.pkinterp(lnkvec[x]))
+    pkvec[xlow] = np.exp(self.lnpk[0] + self.nlow * (lnkvec[xlow] - self.lnk[0]))
+    pkvec[xhigh] = np.exp(self.lnpk[-1] + self.nhigh * (lnkvec[xhigh] - self.lnk[-1]))
+    return pkvec
+
+  def sigmaR(self,R,verbose=False):
+    ## want this to work for a np.array or for a scalar value.
+    try:
+      ll = len(R)
+      Rtmp = R
+      scalarflag = 0
+    except:
+      Rtmp = np.array([R])
+      scalarflag = 1
+    result = np.zeros(len(Rtmp))
+    for i in range(len(Rtmp)):
+      (ii, iierr) = quad(lambda k: k**2*self.eval(k)*(Wtilde(k*Rtmp[i]))**2,1.0e-8,10.)
+      (ii2, iierr2) = quad(lambda k: k**2*self.eval(k)*(Wtilde(k*Rtmp[i]))**2,10.,500.)
+      if verbose == True:
+        print ii, iierr, ii2, iierr2
+      result[i] = np.sqrt((ii+ii2)/2./np.pi**2)
+    if scalarflag == 0:
+      return result
+    else:
+      return result[0]
+
+
+#############################
+## end class Pk          ####
+#############################
+
 
 #############################
 ## begin exact neutrinos ####
@@ -74,9 +176,9 @@ def makeftable():
   ymax = 100.
   dy = 0.01
   yi=np.arange(ymin,ymax,dy)
-  fyi = fexact(y)
+  fyi = fexact(yi)
   ofp = open('ftable.dat','w')
-  for i in range(len(y)):
+  for i in range(len(yi)):
     ofp.write('%e %e\n' % (yi[i], fyi[i]))
   ofp.close() 
   Ibigy, tmperr = quad(lambda x: x**2/(np.exp(x)+1.),0,100)
@@ -175,14 +277,13 @@ def cosmosetup():
   setup = 1
   return 0
   
-
-
 ## Planck XVI: Fixsen 2009 measured Tcmb = 2.7255 \pm 0.0006 K.
 
 class cosmo:
   def __init__(self,och2=0.11219,obh2=0.02207,ogh2=2.469e-5,Tcmb=2.7255, \
                     h=0.7,w0=-1.,wa=0.,omegaDE=0.726,forceflat=1,\
-                    Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1):
+                    Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1,\
+                    pkfname=None,zpk=None,pkamprescale=1.,MFopt=0,mffname=None):
     """
     This will store cosmological parameters and compute cosmological quantities of interest.
     Assume 3 std mass eigenstates (mnu1, mnu2, mnu3) and a single mass eigenstate for relativistic
@@ -191,6 +292,12 @@ class cosmo:
     use NorI = 0 or 1 and specify Smnu > Smnumin.
     Or specify onuh2 and we solve for the mass assuming 
     either a single massive neutrino (SorD = 0) or 3 degenerate neutrinos (SorD = 1).
+    Added functionality for Pk and stuff you might compute from that.
+    For now you must input a camb file, in the future, we should make this thing call CAMB.
+    In the future we should code up the growth equation or allow multiple P(k) files at different z.
+    MFopt = 0: do nothing.  Leave MF blank.
+    MFopt = 1: compute MF.  If mffname is not None, write it to that file. 
+    MFopt = 2: read in MF from mffname.
     """
 
     cosmosetup()
@@ -254,6 +361,22 @@ class cosmo:
     #print 'deez',self.och2, self.obh2, self.ogh2, onuh2(1.,self)
     #print 'ok:',self.okh2,self.okh2/h**2
 
+    if pkfname is not None and zpk is not None:
+      self.linPk = linPk(pkfname=pkfname,pkamprescale=pkamprescale)
+      self.zpk = zpk
+
+    #MFopt = 1: compute MF.  If mffname is not None, write it to that file. 
+    if MFopt == 1:
+      if(mffname is not None):
+        self.fillMF(mffname=mffname,writeopt = True)
+      else:
+        self.fillMF() # use defaults.
+
+    #MFopt = 2: read in MF from mffname.
+    if MFopt == 2:
+      self.fillMF(mffname=mffname)
+
+
   def __str__(self):
     mystr = ''
     if(self.flat == 1):
@@ -315,7 +438,38 @@ class cosmo:
   def Hofz(self,a):
     return 100.*self.h*self.normH(a)
 
+  def DofaLCDM(self,a):
+    assert np.fabs(self.w0 + 1) < 2.0e-6
+    assert np.fabs(self.wa) < 2.0e-6
+    ## hmm, what about neutrinos?  make sure close to minimal at least.
+    assert np.fabs(self.onuh2(1.) < 0.0007)
+    i1, i1err = quad(lambda ap: 1./(ap*self.normH(ap))**3,1.0e-6,a)
+    if np.fabs(i1err/i1) > 0.001:
+      print 'growth convergence problem??'
+      print i1, i1err
+    ## not allowing neutrinos to contribute to omegam of growth.  correct?
+
+    return (5./2.*self.ocb*self.normH(a)*i1)
+
+  def dlnDdlnaLCDM(self,a):
+    assert np.fabs(self.w0 + 1) < 2.0e-6
+    assert np.fabs(self.wa) < 2.0e-6
+    ## hmm, what about neutrinos?  make sure close to minimal at least.
+    assert np.fabs(self.onuh2(1.) < 0.0007)
+    
+    return (1./(self.normH(a))**2*(-3./2.*self.ocb/a**3-self.ok/a**2 + 5./2.*a/self.DofaLCDM(a)*self.ocb/a**3))
+
+  def dDdlnaLCDM(self,a):
+    assert np.fabs(self.w0 + 1) < 2.0e-6
+    assert np.fabs(self.wa) < 2.0e-6
+    ## hmm, what about neutrinos?  make sure close to minimal at least.
+    assert np.fabs(self.onuh2(1.) < 0.0007)
+
+    myDofa = self.DofaLCDM(a)
+    return myDofa/self.DofaLCDM(1.) * (1./(self.normH(a))**2*(-3./2.*self.ocb/a**3-self.ok/a**2 + 5./2.*a/myDofa*self.ocb/a**3))
+
   def DAz(self,a):
+    """ this is in Mpc"""
     # converter to angular diameter distance.
     i1, i1err = quad(lambda ap: ap**-2*self.normHinv(ap),a,1)
     if(self.flat == 1):
@@ -365,6 +519,137 @@ class cosmo:
       ofp.write('transfer_filename(%d) = transfer_%d.out\n' % (i+1,i+1))
       ofp.write('transfer_matterpower(%d) = matterpower_%d.out\n' % (i+1,i+1))
     ofp.close()
+
+##################################
+## begin halo model utilities ####
+## (mass fxn, bias fxn, ...)  ####
+##################################
+
+  def LagrangianMtoR(self,M):
+    """
+    Counts cdm and baryons towards mass budget, not massive neutrinos (!!??)
+    Units are Msun/h.
+    """
+    denom = 4./3.*np.pi*rhocrit*self.ocb
+    return (M/denom)**(1./3.)
+
+  def LagrangianRtoM(self,R):
+    """
+    Comoving radius associated with 
+    """
+    return 4./3.*np.pi*rhocrit*self.ocb*R**3.
+
+  def MtoRvir(self,MDelta,Delta=200.):
+    return self.LagrangianMtoR(MDelta)*Delta**(-1./3.)
+
+  def RtoMvir(self,RDelta,Delta=200.):
+    return self.LagrangianRtoM(RDelta)*Delta
+
+  def nuofM(self,M,deltac=1.686):
+    return deltac/self.linPk.sigmaR(self.LagrangianMtoR(M))
+
+  def nuofsigma(self,sigma,deltac=1.686):
+    """
+    Input sigma instead of M if you already computed sigma(M).
+    """
+    return deltac/sigma
+
+  def bJTnu(self,nu,Delta=200.):
+    y=np.log10(Delta)
+    deltac = 1.686
+    A = 1.0+0.24*y*np.exp(-(4./y)**4.)
+    a = 0.44*y-0.88
+    B = 0.183
+    b = 1.5
+    C = 0.019 + 0.107*y + 0.19*np.exp(-(4./y)**4.)
+    c = 2.4
+    return (1. - A*nu**a/(nu**a + deltac**a) + B*nu**b + C*nu**c)
+
+  def bofM(self,M,Delta=200.):
+    return self.bJTnu(nu=self.nuofM(M,Delta=Delta),Delta=Delta)
+
+  def dndlnM(self,M,z,Delta=200.,wantsigma=False):
+    """
+    mass fxn at redshift of power spectrum you input.
+    """
+    if np.fabs(Delta - 200.) > 0.01:
+      print 'I have not coded the interpolation for nofM; only currently works for Delta = 200.'
+      return 0.
+    if np.fabs(z - self.zpk) > 0.001:
+      print 'code not generalized yet, mass fxn z must be hte same as power spectrum z.'
+      return 0.
+    ## parameters from http://adsabs.harvard.edu/abs/2008ApJ...688..709T for Delta = 200 (Table 2)
+    A = 0.186*(1.+z)**-0.14
+    a = 1.47*(1.+z)**-0.06
+    alpha = 10**(-(0.75/np.log10(Delta/75.))**1.2)
+    b = 2.57*(1.+z)**-alpha
+    c = 1.19
+    sig = self.linPk.sigmaR(self.LagrangianMtoR(M))
+    ## make an interpolator object to get the log derivative.
+    try:
+      ll = len(M)
+      ## ok, M is an array so proceed to derive derivative straight from there.
+      lnsiginterp = interp.InterpolatedUnivariateSpline(np.log(M),np.log(sig))
+      sigfac = np.array([-lnsiginterp.derivatives(np.log(mi))[1] for mi in M])
+    except:
+      ## M is a scalar, so evaluate sig at neighboring mass points and derive derivative.
+      tmpfac = 0.9 ## factor (smaller than 1) to scale mass on either side to compute sigma derivative.
+      mtmp = np.array([tmpfac*M,M,M/tmpfac])
+      slist = np.array([self.linPk.sigmaR(self.LagrangianMtoR(tmpfac*M)), sig, self.linPk.sigmaR(self.LagrangianMtoR(M/tmpfac))])
+      lnsiginterp = interp.InterpolatedUnivariateSpline(np.log(mtmp),np.log(slist))
+      sigfac = -lnsiginterp.derivatives(np.log(M))[1]
+
+    fsigma = A*((sig/b)**-a + 1.)*np.exp(-c/sig**2)
+    if(wantsigma == False):
+      return fsigma*rhocrit*self.ocb/M*sigfac
+    else: ## return sigma vector corresponding to M as well.
+      return sig, fsigma*rhocrit*self.ocb/M*sigfac
+
+  def printMF(self,outfname):
+    """
+    Dump mass function theory to a file.
+    """
+    try:
+      ll = len(self.mlist)
+    except:
+      return 0.
+
+    ofp = open(outfname,'w')
+    for i in range(len(self.mlist)):
+      ofp.write('%e %e %e %e\n' % (self.mlist[i], self.siglist[i], self.mf[i], self.blist[i]))
+    ofp.close()
+
+  def fillMF(self,mmin=2.e11,mmax=1.e16,dlg10m=0.01,mffname=None,writeopt=False):
+    """
+    Evaluate the theory prediction for the mass function
+    and compute/store sigma(M) along the way.
+    Need to track Delta more carefully if it becomes a real variable.
+    """
+    if mffname is None or writeopt == True:
+      ## log spacing.
+      self.mlist = 10**(np.arange(np.log10(mmin),np.log10(mmax),dlg10m))
+      self.siglist, self.mf = self.dndlnM(self.mlist,self.zpk, wantsigma=True)
+      self.blist = self.bJTnu(nu=self.nuofsigma(self.siglist))  ## implicitly assumes Delta = 200. !!  carefull!!
+    if writeopt == False and mffname is not None:
+      self.mlist, self.siglist, self.mf, self.blist = np.loadtxt(mffname,unpack=True,usecols=[0,1,2,3])
+    if writeopt == True and mffname is not None:
+      self.printMF(mffname)
+
+    self.mfinterp = interp.InterpolatedUnivariateSpline(np.log(self.mlist),np.log(self.mf))
+    self.binterp = interp.InterpolatedUnivariateSpline(np.log(self.mlist),self.blist)
+
+  def dndlnMinterp(self,M):
+    return np.exp(self.mfinterp(np.log(M)))
+
+  def biasinterp(self,M):
+    return self.binterp(np.log(M))
+
+##################################
+## end halo model utilities   ####
+## (mass fxn, bias fxn, ...)  ####
+##################################
+
+
 
 def Planck2cosmo(pelt,pnames):
   ## optional params
@@ -445,7 +730,7 @@ def readPlanckchain(fparams, fchain):
   chain = np.genfromtxt(fchain,names=names)
   return names,chain
 
-def DAHcheckPlanck(fparams,fchain):
+def DAHcheckPlanck(fparams,fchain,nsamples=-1):
   """
   This function's purpose is to check my calculations 
   of DA and H at z=0.57 and DA(zstar) against the 
@@ -463,7 +748,14 @@ def DAHcheckPlanck(fparams,fchain):
   avgdiffDAstar = 0.
   avgDAstar = 0.
 
-  for i in range(len(chain['omegach2'][:])):
+  if nsamples == -1:
+    nsamples = len(chain['omegach2'][:])
+
+  myfac = len(chain['omegach2'][:])/nsamples
+
+  i = 0
+  while i < len(chain['omegach2'][:]):
+#  for i in range(len(chain['omegach2'][:])):
     #if(i>10): break
     astar = 1./(1.+chain['zstar'][i])
     rstar = chain['rstar'][i]
@@ -491,6 +783,7 @@ def DAHcheckPlanck(fparams,fchain):
     avgdiffDAstar += diffDAstar
     maxdiffDAstar = max(maxdiffDAstar,diffDAstar)
     avgDAstar += myDAstar
+    i += myfac
 
   ll = float(len(chain['omegach2'][:]))
   avgdiff = avgdiff/ll
@@ -499,7 +792,7 @@ def DAHcheckPlanck(fparams,fchain):
   avgDA = avgDA/ll
   avgDAstar = avgDAstar/ll
   avgH = avgH/ll
-  print fchain.split('/')[-1],ll,maxdiff/avgDA,maxdiffH/avgH, maxdiffDAstar/avgDAstar, \
+  print fchain.split('/')[-1],nsamples,ll,maxdiff/avgDA,maxdiffH/avgH, maxdiffDAstar/avgDAstar, \
                                  avgdiff/avgDA, avgdiffH/avgH, avgdiffDAstar/avgDAstar
 
 
@@ -516,7 +809,7 @@ def mysolveDAflat(h,cozold, astar, \
   return coztmp.DAz(astar)
   #mlight = scipy.optimize.brentq(lambda x: solveSmnu(x,NorI) - Smnu, 0, Smnu/3.)
 
-
+## this can be replaced with the curved version now, I checked they give the same answer.  I should keep the function name available though for backwards compatibility.
 def cosmofromDAflat(cozold, DAzstar, zstar, \
                    Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1,\
                    w0=-1.,wa=0.):
@@ -545,8 +838,130 @@ def cosmofromDAflat(cozold, DAzstar, zstar, \
   assert((coznew.DAz(astar) - DAzstar)/DAzstar < 1.0e-5)
   return coznew
 
+def mysolveDAcurved(h,cozold, astar, \
+                   Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1,\
+                   w0=-1.,wa=0.,omegak=0.):
+
+  if np.fabs(omegak) < 2.0e-6:
+    forceflat = 1
+  else:
+    forceflat = 0
+  okh2 = omegak*h**2
+  oDEh2 = h**2 - (cozold.och2 + cozold.obh2 + cozold.ogh2 + cozold.onuh2(1.) + okh2)
+  oDE = oDEh2/h**2
+  coztmp = cosmo(och2=cozold.och2, obh2=cozold.obh2, ogh2=cozold.ogh2, Tcmb=cozold.Tcmb, \
+                 h=h,
+                 w0=w0,
+                 wa=wa,
+                 omegaDE = oDE,
+                 forceflat=forceflat,
+                 Neff=Neff,mnu1=mnu1,mnu2=mnu2,mnu3=mnu3,mnu4=mnu4,NorI=NorI,
+                 Smnu=Smnu,onuh2val=onuh2val,SorD=SorD)
+  return coztmp.DAz(astar)
+  #mlight = scipy.optimize.brentq(lambda x: solveSmnu(x,NorI) - Smnu, 0, Smnu/3.)
+
+
+def cosmofromDAcurved(cozold, DAzstar, zstar, \
+                   Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1,\
+                   w0=-1.,wa=0.,omegak=0.):
+  """
+  Input zstar.  Not allowed to change parameters that determine zstar; only vary H0.
+  Enforces flatness.
+  The purpose is to look at degeneracies at fixed DAstar.  
+  Allowed to vary w0/wa or neutrino masses here from the fiducial model, and 
+  h will be adjusted to keep DAzstar fixed.
+  """
+  astar = 1./(1.+zstar)
+  try:
+    newhval = scipy.optimize.brentq(lambda x: mysolveDAcurved(x,cozold,astar,Neff, mnu1, mnu2, mnu3, mnu4, NorI, Smnu, onuh2val,SorD,w0,wa,omegak) - DAzstar,cozold.h*0.5,cozold.h*2.)
+  ## should test for failure here!
+  except:
+    return None
+
+  ## success!
+  if np.fabs(omegak) < 2.0e-6:
+    forceflat = 1
+  else:
+    forceflat = 0
+  okh2 = omegak*newhval**2
+  oDEh2 = newhval**2 - (cozold.och2 + cozold.obh2 + cozold.ogh2 + cozold.onuh2(1.) + okh2)
+  oDE = oDEh2/newhval**2
+
+
+  coznew = cosmo(och2=cozold.och2, obh2=cozold.obh2, ogh2=cozold.ogh2, Tcmb=cozold.Tcmb, \
+                 h=newhval,
+                 w0=w0,
+                 wa=wa,
+                 omegaDE = oDE,
+                 forceflat=forceflat,
+                 Neff=Neff,mnu1=mnu1,mnu2=mnu2,mnu3=mnu3,mnu4=mnu4,NorI=NorI,
+                 Smnu=Smnu,onuh2val=onuh2val,SorD=SorD)
+  assert((coznew.DAz(astar) - DAzstar)/DAzstar < 1.0e-5)
+  return coznew
+
+
 ## same sort of excercise, but for w0-wa, fixing DAzstar and DAzeff.
 #def 
+
+## ran this over a Planck chain in my camb directory:
+#howdiedoo@montserrat:~/mysoftware/cambMar13/camb$ python runfs8test.py > OUTrunfs8testplancklcdm
+
+## Planck predicts fs8(z=0.57) = 0.481 \pm 0.010
+
+def Planck2fs8camb(pelt, pnames, zhigh = 0.58, zlow = 0.56):
+  if 'mnu' in pnames:
+    print 'assuming here minimal neutrino mass, one mass eigenstate.'
+    sys.exit(1)
+  if zlow > zhigh:
+    return -1
+
+  cfname = 'cambfs8tmp.ini'
+  cc = Planck2cosmo(pelt,pnames)
+  print cc.DofaLCDM(1./1.56), cc.DofaLCDM(1./1.58), cc.dDdlnaLCDM(1./1.57)*pelt['sigma8'], pelt['sigma8']
+  cfp = open(cfname,'w')
+  cfp.write('ombh2 = %e\n' % cc.obh2)
+  cfp.write('omch2 = %e\n' % cc.och2)
+  cfp.write('omnuh2 = %e\n' % cc.onuh2(1.))
+  cfp.write('hubble = %e\n' % (cc.h * 100))
+  cfp.write('scalar_amp(1) = %e\n' % (np.exp(pelt['logA'])*1.e-10))
+  cfp.write('scalar_spectral_index(1) = %e\n' % (pelt['ns']))
+  cfp.write('DEFAULT(bethdefaultfs8.ini)\n')
+  cfp.write('transfer_high_precision = T\n')
+  cfp.write('transfer_kmax           = 2\n')
+  cfp.write('transfer_k_per_logint   = 0\n')
+  cfp.write('transfer_num_redshifts  = 3\n')
+  cfp.write('transfer_interp_matterpower = T\n')
+  cfp.write('transfer_redshift(3)    = 0.0\n')
+  cfp.write('transfer_filename(3)    = transfer_z0p0.dat\n')
+  cfp.write('transfer_redshift(2)    = %e\n' % zlow)
+  cfp.write('transfer_filename(2)    = transfer_z0p56.dat\n')
+  cfp.write('transfer_redshift(1)    = %e\n' % zhigh)
+  cfp.write('transfer_filename(1)    = transfer_z0p58.dat\n')
+  cfp.close() 
+  ## now scrape the output.
+  mystr = './camb %s > tmpout' % (cfname)
+  os.system(mystr)
+
+  sig8list = []
+  ifp = open('tmpout','r')
+  for line in ifp:
+    if re.search('^ at z =',line):
+      sig8val = float(line.split('(all matter)=')[-1].strip('\n'))
+      sig8list.append(sig8val)
+  ifp.close()
+  if not len(sig8list) == 3:
+    print sig8list
+  assert len(sig8list) == 3
+  ## check z=0
+  if not np.fabs(sig8list[-1] - pelt['sigma8']) < 0.002:
+    return -1 ## some alignment error.
+  dlna = np.log((1.+zhigh)/(1.+zlow))
+  fs8val = (sig8list[1] - sig8list[0])/dlna
+  
+  return fs8val
+  
+
+
 
 
 if __name__ == '__main__':

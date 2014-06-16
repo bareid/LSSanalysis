@@ -252,6 +252,7 @@ class xiell:
       return 1 
     return 0
 
+
   def __add__(self,other):
     if(self.checkbinning(other) == 0):
       xiellnew = copy.deepcopy(self)
@@ -284,16 +285,57 @@ class xiell:
   def chi2(self,other):
     """
     compute chi2 of self with other.  self is the one with the inverse cov.
+    can also input a long vector and will compute chi2 with htat if format correct.
     """
-    diff = np.matrix(self.xilong-other.xilong)
-    if self.DorT == 0 and other.DorT == 1:
-      return ((diff*self.icov) * (diff.T))[0,0]
-    elif self.DorT == 1 and other.DorT == 0:
-      return ((diff*other.icov) * (diff.T))[0,0]
-    elif self.DorT == 0 and other.DorT == 0:
-      return ((diff*self.icov) * (diff.T))[0,0]
+    if isinstance(other,xiell):
+      diff = np.matrix(self.xilong-other.xilong)
+      if self.DorT == 0 and other.DorT == 1:
+        return ((diff*self.icov) * (diff.T))[0,0]
+      elif self.DorT == 1 and other.DorT == 0:
+        return ((diff*other.icov) * (diff.T))[0,0]
+      elif self.DorT == 0 and other.DorT == 0:
+        return ((diff*self.icov) * (diff.T))[0,0]
+      else:
+        return 0. ## can't compute chi2 without an inverse covariance matrix.
     else:
-      return 0. ## can't compute chi2 without an inverse covariance matrix.
+      try:
+        diff = np.matrix(self.xilong - other)
+      except:
+        return 0.
+      return ((diff*self.icov) * (diff.T))[0,0]
+
+  def chi2info(self,other):
+    """
+    For non-diagonal cov, this helps show you which differences between model and theory contribute the most
+    to chi2.
+    """
+    if isinstance(other,xiell):
+      diff = np.matrix(self.xilong-other.xilong)
+      if self.DorT == 0 and other.DorT == 1:
+        myicov = self.icov
+#        return ((diff*self.icov) * (diff.T))[0,0]
+      elif self.DorT == 1 and other.DorT == 0:
+        myicov = other.icov
+#        return ((diff*other.icov) * (diff.T))[0,0]
+      elif self.DorT == 0 and other.DorT == 0:
+        myicov = self.icov
+#        return ((diff*self.icov) * (diff.T))[0,0]
+      else:
+        return 0. ## can't compute chi2 without an inverse covariance matrix.
+    else:
+      try:
+        diff = np.matrix(self.xilong - other)
+        myicov = self.icov
+      except:
+        return 0.
+    mysum = 0.
+    for i in range(len(self.xilong)):
+      print i,diff[0,i]*((diff*myicov)[0,i])
+      mysum += diff[0,i]*((diff*myicov)[0,i])
+    assert np.fabs(mysum - self.chi2(other)) < 0.001
+    return mysum
+
+
 
   def printxiellshort(self,outfname):
           #svec = np.zeros([nell,ns])
@@ -490,24 +532,45 @@ def weightsum(xiinlist,wgtlist):
   returns a new xiell instance whose xiell values are the weighted sum of 
   the values in the xiinlist. 
   """
+  if len(xiinlist) < 1:
+    return None
   try:
     ximean = copy.deepcopy(xiinlist[0].xi)
-    ximean = ximean*wgtlist[0]
-    wgtsum = wgtlist[0]
-    for i in range(1,len(xiinlist)):
-      ximean += xiinlist[i].xi*wgtlist[i]
-      wgtsum += wgtlist[i]
-    ximean = ximean/wgtsum
-    return xiell(sxilist=[xiinlist[0].svec, ximean])
   except:
     return None
+
+  ximean = ximean*wgtlist[0]
+  wgtsum = wgtlist[0]
+  for ii in range(1,len(xiinlist)):
+## first sanity checks that binning is equal.
+    if xiinlist[ii].nell != xiinlist[0].nell:
+      return None
+    if xiinlist[ii].ndata != xiinlist[0].ndata:
+      return None
+    
+    for ll in range(xiinlist[0].nell):
+      if (xiinlist[ii].svec[ll,:] != xiinlist[0].svec[ll,:]).any():
+        return None
+      if ll == 0:
+        if (xiinlist[ii].s0 != xiinlist[0].s0).any():
+          return None
+      if ll == 1:
+        if (xiinlist[ii].s2 != xiinlist[0].s2).any():
+          return None
+
+    ximean += xiinlist[ii].xi*wgtlist[ii]
+    wgtsum += wgtlist[ii]
+
+
+  ximean = ximean/float(wgtsum)
+  return xiell(sxilist=[xiinlist[0].svec, ximean])
 
 
 ## has this function been tested??
 
 def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
                 dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
-                DRfacinfo=None,smallRRcut=-1.,periodicopt=0,printmaskopt=0):
+                DRfacinfo=None,smallRRcut=-1.,periodicopt=0,printmaskopt=0,xiopt=0):
   """
   This function should supercede older codes with names like rebinxismugeneric*py
   input the base for the DR files, as well as optional bin files and small scale 
@@ -521,13 +584,20 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
   randoms in the bin is smaller than smallRRcut, just to keep Poisson noise down.
   If periodicopt == 1, assume the input is file containing [rg, mug, Vg, Ng] as currently output
   by correlationfxnMASTERv4.
+  xiopt introduced on May 13 2014 to input xi(s,mu) and simply rebin (for comparison with Hong).
   """
-  if(periodicopt == 1): # periodic box.
+  if periodicopt == 1: # periodic box.
     rg, mug, Vg, Ng = np.loadtxt(fbase,unpack=True)
     Vzerochk = Vg.min()*0.1
     fDR = fbase ## just for the return xiell purposes.
-
-
+  elif xiopt == 1:
+    rg, mug, xig = np.loadtxt(fbase,unpack=True,usecols=[0,1,2])  ## Hong format.
+    fDR = fbase
+    if binfile is None:
+      ikeep = np.where((rg >= smincut) & (rg <= smaxcut))[0]
+      rg = rg[ikeep]
+      mug = mug[ikeep]
+      xig = xig[ikeep]
   else: # DD,RR counts.
     fDD = fbase+'.DRopt1'
     fDR = fbase+'.DRopt2'
@@ -573,12 +643,21 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     logsopt = 0
     rglowedge = rg.copy()
     rglowedge = rglowedge-0.5*ds
+    ## added specifically for xiopt
+    rghighedge = rg.copy()
+    rghighedge = rghighedge+0.5*ds
   if (np.fabs(np.log(s1d[1:])-np.log(s1d[:-1]) - dlogs) < 0.0001*dlogs).all():
     logsopt = 1
     rglowedge = rg.copy()
     rglowedge = rglowedge*np.exp(-0.5*dlogs)
+    ## added specifically for xiopt
+    rghighedge = rg.copy()
+    rghighedge = rghighedge*np.exp(0.5*dlogs)
 
   assert logsopt == 0 or logsopt == 1
+  if xiopt == 1:
+    Vg = rghighedge**3 - rglowedge**3  ## just need something proportional to volume.
+    Vzerochk = Vg.min()*0.1
 
   ## cut at edge of bin.
   xx = np.where(rglowedge*(1-(mug+0.5*dmu)**2)**0.5 < rperpcut)[0]
@@ -587,6 +666,10 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     if periodicopt == 1:
       Vg[xx] = 0.
       Ng[xx] = 0.
+    elif xiopt == 1:
+      Vg[xx] = 0.
+      xig[xx] = 0.
+
     else:
       DDg[xx] = 0.
       DRg[xx] = 0.
@@ -602,6 +685,28 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     for i in range(len(mymask)):
       ofpmask.write('%d\n' % (mymask[i]))
     ofpmask.close()
+
+  if(printmaskopt == 2):
+#### nevermind, let's print below the boundaries of each s,mu bin.
+#    print 'yoyoyo opening masktmp2.dat'
+#    ofpmask = open('masktmp2.dat','w')
+    mumaxlist = np.zeros(len(s1d)) + 1.
+    for qi in range(len(s1d)):
+      rgval = s1d[qi]
+      qq = np.where((rg == rgval) & (mymask == 1))[0]
+      ww = np.where((rg == rgval))[0]
+      assert len(ww) > 0
+      if(len(qq) == 0):
+        pass
+#        ofpmask.write('%e %e %e\n' % (rgval,rglowedge[ww[0]],1.0))
+      else:
+#        ofpmask.write('%e %e %e\n' % (rgval,rglowedge[ww[0]],mug[qq].max()))
+        mumaxlist[qi] = mug[qq].min()-0.5*dmu
+### testing.
+#      print s1d[qi], mumaxlist[qi]
+      #ofpmask.write('%d\n' % (mymask[i]))
+#    ofpmask.close()
+    
   
   if binfile is not None:
     ## specifies how many rbins to join together for first bin, next bin, etc.
@@ -614,6 +719,9 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
 #    dfacmu = dfacmuin
     nrcut = len(s1d)/dfacs
     dmudown = dfacmu*dmu
+
+  if printmaskopt == 2:
+    ofpmask = open('masktmp2.dat','w')
 
   ## check mask if I'm going to cut more.
   ristart = 0
@@ -646,7 +754,7 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
     for ishort in range(dfacs):
       i1 = (ristart+ishort)*nmu
       i2 = (ristart+ishort+1)*nmu
-      if(periodicopt == 1):
+      if periodicopt == 1:
         if(ishort == 0):
           mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
           myVg = ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
@@ -654,6 +762,14 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
         else:
           myVg = myVg + ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
           myNg = myNg + ximisc.downsample1dsum(Ng[i1:i2],dfacmu)
+      elif xiopt == 1:
+        if(ishort == 0):
+          mymu = ximisc.downsample1d(mug[i1:i2],dfacmu)
+          myxig = ximisc.downsample1dvweight(xig[i1:i2],Vg[i1:i2],dfacmu)  #perform volume weighted sum. 
+          myVg = ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
+        else:
+          myxig = myxig + ximisc.downsample1dvweight(xig[i1:i2],Vg[i1:i2],dfacmu) # perform volume weighted sum, divide out at the end.
+          myVg = myVg + ximisc.downsample1dsum(Vg[i1:i2],dfacmu)
 
       else:
         if(ishort == 0):
@@ -666,10 +782,16 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
           mydr = mydr + ximisc.downsample1dsum(DRg[i1:i2],dfacmu)
           myrr = myrr + ximisc.downsample1dsum(RRg[i1:i2],dfacmu)
 
-    if(periodicopt == 1):
+    if periodicopt == 1:
       yy = np.where(myVg < Vzerochk)[0]
       xitmp = myNg/myVg-1.
       xitmp[yy] = 0.
+
+    elif xiopt == 1:
+      yy = np.where(myVg < Vzerochk)[0]
+      xitmp = myxig/myVg
+      xitmp[yy] = 0.
+      ## for now, nothing to 0 out (?)
 
     else:  ##DR stuff
       zz = np.where(myrr < smallRRcut)[0]
@@ -692,7 +814,19 @@ def xiellfromDR(fbase,nell=3,binfile=None,rperpcut=-1.,
       if(badlist[i] == 0):
         xi[ell/2,xiindx] = (xitmp*ximisc.legendre(ell,mymu)).sum()*dmudown*(2.*ell+1.)
         svec[ell/2,xiindx] = rcen[i]
+
+    if printmaskopt == 2:
+      ofpmask.write('%e %e %e %e %e ' % (rcen[i], s1d[ristart]*np.exp(-0.5*dlogs), s1d[riend]*np.exp(0.5*dlogs), mumaxlist[ristart],mumaxlist[riend]))
+      for ell in np.arange(0,nell*2,2):
+        if badlist[i] == 0:
+          ofpmask.write('%e ' % (xi[ell/2,xiindx]))
+        else:
+          ofpmask.write('%e ' % (0.0))
+
+      ofpmask.write('\n')
+
     ristart = ristart + dfacs
+
     if(badlist[i] == 0):
       xiindx += 1
 

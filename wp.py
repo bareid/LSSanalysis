@@ -5,7 +5,11 @@ import copy
 import ximisc
 
 class wp:
-  def __init__(self,wpfname=None,icovfname=None,rpwplist=[]):
+  def __init__(self,wpfname=None,icovfname=None,rpwplist=[],wpstart=-1,wpend=-1):
+    """
+    use wpstart,end to restrict data points to wpstart:wpend+1
+    """
+
     if rpwplist != []:
       try:
         rsig = rpwplist[0]
@@ -21,6 +25,18 @@ class wp:
       except:
         print 'bad wp file'
         self = None
+
+    ## dec 30 adding wpstart, wpend
+    mywpstart = wpstart
+    mywpend = wpend
+    if wpstart == -1:
+      mywpstart = 0
+    if wpend == -1:
+      mywpend = len(wp)-1
+    ## restrict to wpstart:wpend+1
+    rsig = rsig[mywpstart:mywpend+1]
+    wp = wp[mywpstart:mywpend+1]
+    ## end wpstart/end
 
     if self is not None:
       try:
@@ -69,9 +85,13 @@ class wp:
         self.icov = icov
         assert len(icov[:,0]) == self.nrsig
 ## compute diag errors.
-        cov = icov.I
-        diagerr = np.array([np.sqrt(cov[i,i]) for i in range(self.nrsig)])
-        self.diagerr = diagerr
+        try:
+          cov = icov.I
+          diagerr = np.array([np.sqrt(cov[i,i]) for i in range(self.nrsig)])
+          self.diagerr = diagerr
+        except:
+          diagerr = np.zeros(self.nrsig) + 1.
+          self.diagerr = diagerr
 
   def __str__(self):
     mystr = "%d sized wp from [%s]. Range = [%f %f], logopt = %d\n" % (self.nrsig,self.fname,self.rsig.min(),self.rsig.max(),self.logopt)
@@ -99,6 +119,15 @@ class wp:
       print 'add fail!  binning misaligned'
       wpnew = None
     return wpnew
+
+#  def __sub__(self,other):
+#    if(self.checkbinning(other) == 0):
+#      wpnew = copy.deepcopy(self)
+#      wpnew.wp = other.wp - self.wp
+#    else:
+#      print 'add fail!  binning misaligned'
+#      wpnew = None
+#    return wpnew
 
   def printwp(self,outfname):
     ofp = open(outfname,'w')
@@ -217,6 +246,37 @@ class wp:
     else:
       return 0. ## can't compute chi2 without an inverse covariance matrix.
 
+  def chi2info(self,other):
+    """
+    For non-diagonal cov, this helps show you which differences between model and theory contribute the most
+    to chi2.
+    """
+    if isinstance(other,wp):
+      diff = np.matrix(self.wp-other.wp)
+      if self.DorT == 0 and other.DorT == 1:
+        myicov = self.icov
+#        return ((diff*self.icov) * (diff.T))[0,0]
+      elif self.DorT == 1 and other.DorT == 0:
+        myicov = other.icov
+#        return ((diff*other.icov) * (diff.T))[0,0]
+      elif self.DorT == 0 and other.DorT == 0:
+        myicov = self.icov
+#        return ((diff*self.icov) * (diff.T))[0,0]
+      else:
+        return 0. ## can't compute chi2 without an inverse covariance matrix.
+    else:
+      try:
+        diff = np.matrix(self.wp - other)
+        myicov = self.icov
+      except:
+        return 0.
+    mysum = 0.
+    for i in range(len(self.wp)):
+      print i,diff[0,i]*((diff*myicov)[0,i])
+      mysum += diff[0,i]*((diff*myicov)[0,i])
+    assert np.fabs(mysum - self.chi2(other)) < 0.001
+    return mysum
+
 
 def wpfromDDoDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None):
   """
@@ -287,13 +347,13 @@ def wpfromDDoDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,
     return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp])
  
 
-def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None):
+def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,icovfname=None,wpstart=-1,wpend=-1,xiopt=0):
   """
   This function computes wp from DRopt[1-3] files.
   DRfacinfo is used to pass [DRfac, fixRR] (dont get it from file headers in this case)
   That feature is necessary for computing covariance matrices from bootstrap, where that factor
   should be fixed by total N and/or S, it does not vary from bootstrap region to region.
-
+  xiopt added to input Hong's xi values rather than DR counts.
   """
   if(dfacr != 1):
     print 'dfacr not 1 is not coded up yet!'
@@ -302,6 +362,13 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
   if(periodicopt == 1): # periodic box.
     print 'did not code up periodic yet!'
     sys.exit(1)
+  elif xiopt == 1:
+    rpg, rpig, xi, xigerr = np.loadtxt(fbase,unpack=True)
+    nrpibins = len(np.where(rpg == rpg[0])[0])
+    nrpbins = len(np.where(rpig == rpig[0])[0])
+    if nrpibins*nrpbins != len(xi):
+      return None
+    fDR = fbase
 
   else:
     fDD = fbase+'.DRopt1'
@@ -324,34 +391,35 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
 
     xi = ((DDg-DRg*DRfac)/RRg/DRfac**2 + 1.)
 
-    rpi1d = rpig.reshape(nrpbins,nrpibins)[0]
-    ## check that it's linearly spaced, get drpi
-    drpi = rpi1d[1]-rpi1d[0]
-    chk = rpi1d[1:] - rpi1d[:-1] - drpi
-    aaa = np.where(np.fabs(chk) > 1.0e-5)[0]
-    if(len(aaa) > 0):
-      print 'error!'
-      sys.exit(1)
-    assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
-    rp1d = rpg.reshape(nrpbins,nrpibins)[:,0]
+  rpi1d = rpig.reshape(nrpbins,nrpibins)[0]
+  ## check that it's linearly spaced, get drpi
+  drpi = rpi1d[1]-rpi1d[0]
+  chk = rpi1d[1:] - rpi1d[:-1] - drpi
+  aaa = np.where(np.fabs(chk) > 1.0e-5)[0]
+  if(len(aaa) > 0):
+    print 'error!'
+    sys.exit(1)
+  assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+  rp1d = rpg.reshape(nrpbins,nrpibins)[:,0]
 
-    mywp = np.zeros(len(rp1d),dtype='float')
-    wpi = 0
-    for rpval in rp1d:
-      if(testing==1):
-        print 'inside testing'
-        xx = np.where(rpg == rpval)[0]
-        assert len(xx) == nrpibins
-        xicurr = xi[xx]
-        assert (rpig[xx] == rpi1d).all()
-        assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
+  mywp = np.zeros(len(rp1d),dtype='float')
+  wpi = 0
 
-      ## ok, we're sure rpigrid is sane.
-      xx = np.where((rpg == rpval) & (rpig < rpimax))[0]
-      mywp[wpi] = (xi[xx]).sum()*drpi*2.
-      wpi += 1
+  for rpval in rp1d:
+    if(testing==1):
+      print 'inside testing'
+      xx = np.where(rpg == rpval)[0]
+      assert len(xx) == nrpibins
+      xicurr = xi[xx]
+      assert (rpig[xx] == rpi1d).all()
+      assert np.fabs(rpi1d[0]-drpi*0.5) < 1e-3
 
-    return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp])
+    ## ok, we're sure rpigrid is sane.
+    xx = np.where((rpg == rpval) & (rpig < rpimax))[0]
+    mywp[wpi] = (xi[xx]).sum()*drpi*2.
+    wpi += 1
+
+  return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp],wpstart=wpstart,wpend=wpend)
 
 
 
