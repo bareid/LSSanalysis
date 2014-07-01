@@ -283,7 +283,8 @@ class cosmo:
   def __init__(self,och2=0.11219,obh2=0.02207,ogh2=2.469e-5,Tcmb=2.7255, \
                     h=0.7,w0=-1.,wa=0.,omegaDE=0.726,forceflat=1,\
                     Neff=3.046,mnu1=0.,mnu2=0.,mnu3=0.,mnu4=0.,NorI=-1,Smnu=-1,onuh2val=-1.,SorD=1,\
-                    pkfname=None,zpk=None,pkamprescale=1.,MFopt=0,mffname=None):
+                    pkfname=None,zpk=None,pkamprescale=1.,\
+                    MFopt=0,mffname=None,mminMF=2.e11,mmaxMF=1.e16,dlg10mMF=0.01):
     """
     This will store cosmological parameters and compute cosmological quantities of interest.
     Assume 3 std mass eigenstates (mnu1, mnu2, mnu3) and a single mass eigenstate for relativistic
@@ -368,7 +369,7 @@ class cosmo:
     #MFopt = 1: compute MF.  If mffname is not None, write it to that file. 
     if MFopt == 1:
       if(mffname is not None):
-        self.fillMF(mffname=mffname,writeopt = True)
+        self.fillMF(mffname=mffname,writeopt = True,mmin=mminMF,mmax=mmaxMF,dlg10m=dlg10mMF)
       else:
         self.fillMF() # use defaults.
 
