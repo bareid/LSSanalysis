@@ -20,8 +20,8 @@ class massfxn:
     """
     if m is not None:
       self.m = m
-      self.Nofm
-      self.log10mcen = np.log10(self.m) ## this mass defn matches the class halocat definition.
+      self.Nofm = Nofm
+      self.lg10mcen = np.log10(self.m) ## this mass defn matches the class halocat definition.
       self.logopt = -1
 
     else:
@@ -44,7 +44,7 @@ class massfxn:
           assert ((self.lg10mcen - self.lg10mmin - 0.5*self.dlg10m)/self.dlg10m - np.arange(0,len(self.lg10mcen),1) < 0.001).all()
         else:
           self.m, self.Nofm = np.loadtxt(mffname,usecols=[0,1],unpack=True)
-          self.log10mcen = np.log10(self.m)
+          self.lg10mcen = np.log10(self.m)
 
 
       else:
@@ -97,10 +97,15 @@ class hod():
       
 
   ## default HOD is current beth best fit to xiell's.
-  def __init__(self,Mmin=1.1460142e+13,M1=1.57663077e+14,alpha=1.298719e+00,Mcut=3.238620e+11,sigmalogM=3.40466e-01,m=None,Nofm=None,mffname=None,Lbox=677.7,cenopt=2,satopt=2,vdispfname=None):
+  def __init__(self,Mmin=1.1460142e+13,M1=1.57663077e+14,alpha=1.298719e+00,Mcut=3.238620e+11,sigmalogM=3.40466e-01,gmax=1.0,\
+               m=None,Nofm=None,mffname=None,Lbox=677.7,cenopt=2,satopt=2,vdispfname=None):
 
     if(mffname is not None):
       self.mf = massfxn(mffname=mffname,Lbox=Lbox,m=m,Nofm=Nofm)
+    if m is not None:
+      if Nofm is None:
+        return None
+      self.mf = massfxn(m=m,Nofm=Nofm)
 
     if mffname is not None and vdispfname is not None:
       m1 = np.loadtxt(mffname,unpack=True,usecols=[0])
@@ -123,7 +128,7 @@ class hod():
     self.sigmalogM = sigmalogM
     self.cenopt = cenopt
     self.satopt = satopt
-
+    self.gmax = gmax
 
   def fsat(self):
     try:
@@ -180,6 +185,9 @@ class hod():
     if(self.cenopt == 15):
       xx = np.where((Mvec >= self.Mmin) & (Mvec < self.M1))[0]
       result[xx] = 1.
+    if self.cenopt == 20:
+      result = self.gmax * np.exp(-np.log10(Mvec/self.Mmin)**2/2./self.sigmalogM)
+
     if scalarflag == 1:
       return result[0]
     else:
