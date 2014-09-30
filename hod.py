@@ -186,7 +186,7 @@ class hod():
       xx = np.where((Mvec >= self.Mmin) & (Mvec < self.M1))[0]
       result[xx] = 1.
     if self.cenopt == 20:
-      result = self.gmax * np.exp(-np.log10(Mvec/self.Mmin)**2/2./self.sigmalogM)
+      result = self.gmax * np.exp(-(np.log10(Mvec/self.Mmin))**2/2./self.sigmalogM)
 
     if scalarflag == 1:
       return result[0]

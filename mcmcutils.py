@@ -93,6 +93,34 @@ def getclevels(Hin,flist=[0.683,0.954]):
     clist.append(clev)
   return clist
 
+def contourplot(x,y,wgt=None,ax=None,\
+                 nxbins=25,nybins=25,flist=[0.683,0.954],
+                 linestyle='-',color='k',linewidths=3):
+  """
+  Input optional weight to make a weighted 2d histogram.
+  flist is fraction of points you want to enclose.
+  """
+  if wgt is None:
+    H, xedges, yedges = np.histogram2d(x,y,[nxbins,nybins])
+  else:
+    H, xedges, yedges = np.histogram2d(x,y,[nxbins,nybins],weights=wgt)
+  Hflip = np.zeros([nybins,nxbins])  # for some idiotic reason, contour progam bins are flipped.
+  xcen = (xedges[1:] + xedges[:-1])*0.5
+  ycen = (yedges[1:] + yedges[:-1])*0.5
+  for x in range(nxbins):
+    for y in range(nybins):
+      Hflip[y,x] = H[x,y]
+
+  clist = getclevels(Hflip,flist)
+  if ax is None:
+    f = plt.figure()
+    ax = f.add_subplot(111)
+    ax.contour(xcen,ycen,Hflip,levels=clist,linestyles=linestyle,colors=color,linewidths=linewidths)
+    return f, ax
+  else:
+    ax.contour(xcen,ycen,Hflip,levels=clist,linestyles=linestyle,colors=color,linewidths=linewidths)    
+
+## can delete this?? just duplicated with contourplot above.  oops!
 def contourplotgeneric(vx,vy,wgt=None,ax=None,wgtopt=1,\
                nxbins=25,nybins=25,flist=[0.683,0.954],
                linestyle='-',color='k',linewidths=3):
@@ -194,6 +222,8 @@ class chain:
     xx = np.where(self.chain['chi2_tot'][:] == mymin)
     return xx, mymin
 
+
+
   ## copying from plot2dhistcleanboth2planelv5talk.py in prettyplotsv2
   def contourplot(self,xname,yname,ax=None,wgtopt=1,\
                  nxbins=25,nybins=25,flist=[0.683,0.954],
@@ -203,29 +233,14 @@ class chain:
     in the chain.  Set wgtopt = 0 to weight the points equally.
     flist is fraction of chain you want to enclose.
     """
-    if wgtopt == 1:  
-      H, xedges, yedges = np.histogram2d(self.chain[xname],self.chain[yname],[nxbins,nybins],weights=self.chain['weight'])
-    else:
-      H, xedges, yedges = np.histogram2d(self.chain[xname],self.chain[yname],[nxbins,nybins])
+    wgt = None
+    if wgtopt == 1:
+      wgt = self.chain['weight']
+    x = self.chain[xname]
+    y = self.chain[yname]
+    contourplot(x,y,wgt,ax,nxbins,nybins,flist,linestyle,color,linewidths)
 
-    Hflip = np.zeros([nybins,nxbins])  # for some idiotic reason, contour progam bins are flipped.
-    xcen = (xedges[1:] + xedges[:-1])*0.5
-    ycen = (yedges[1:] + yedges[:-1])*0.5
-    for x in range(nxbins):
-      for y in range(nybins):
-        Hflip[y,x] = H[x,y]
 
-    clist = getclevels(Hflip,flist)
-    if ax is None:
-      f = plt.figure()
-      ax = f.add_subplot(111)
-      ax.contour(xcen,ycen,Hflip,levels=clist,linestyles=linestyle,colors=color,linewidths=linewidths)
-      return f, ax
-    else:
-      ax.contour(xcen,ycen,Hflip,levels=clist,linestyles=linestyle,colors=color,linewidths=linewidths)
-
-      
-    
   
   def fillstepmatrix(self,steprescale=2.4):
     """
