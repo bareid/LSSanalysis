@@ -186,7 +186,7 @@ class hod():
       xx = np.where((Mvec >= self.Mmin) & (Mvec < self.M1))[0]
       result[xx] = 1.
     if self.cenopt == 20:
-      result = self.gmax * np.exp(-(np.log10(Mvec/self.Mmin))**2/2./self.sigmalogM)
+      result = self.gmax * np.exp(-np.log10(Mvec/self.Mmin)**2/2./self.sigmalogM)
 
     if scalarflag == 1:
       return result[0]
@@ -344,12 +344,29 @@ def hodfromchain(celt,whichbox=1,cenopt=2,satopt=2,bosswdir='/home/howdiedoo/bos
   hh = hod(Mmin = Mmin, M1 = M1, Mcut = Mcut, sigmalogM= celt['sigma_logM'], alpha = celt['alpha'],mffname=mffname,Lbox=Lbox,cenopt=cenopt,satopt=satopt,vdispfname=vdispfname)
   return hh
 
-def comparevcats(whichbox=1,bosswdir='/home/howdiedoo/boss/',whichPB=0,sanitycheck=1,msplits=None):
+def comparevcats(whichbox=1,bosswdir='/home/howdiedoo/boss/',whichPB=0,sanitycheck=1,msplits=None,
+                 fv1=None,fv2=None,Lbox=None):
+  """
+  Compute some stats in mass bins, using differences between two different velocity definitions.
+  To manually enter halo catalogs, just set whichbox = -1 and populate fv1 and fv2.
+  """
+  if whichbox != -1 and whichbox != 1 and whichbox != 2:
+    print 'whichbox not defined.  quitting'
+    return None
+
+  if whichbox == -1:
+    if fv1 is None or fv2 is None or Lbox is None:
+      print 'need to input fv1 and fv2 and Lbox!'
+      return None
+    fCOMV = fv1
+    fnew = fv2
+
   if whichbox == 1:
     fCOMV = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanckCOMV.halos'
     fnew = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanck.halos'
-    fvCOMV = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanckCOMV.halomembers.vdisp'
-    fvnew = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanck.halomembers.vdisp'
+    ## not used!
+    #fvCOMV = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanckCOMV.halomembers.vdisp'
+    #fvnew = bosswdir.split('boss/')[0] + 'SOmaster/MWhiresplanck.halomembers.vdisp'
     Lbox = 677.7
 
   if whichbox == 2:
@@ -357,8 +374,9 @@ def comparevcats(whichbox=1,bosswdir='/home/howdiedoo/boss/',whichPB=0,sanityche
     assert whichPB == 0 ## only one we ran COMV for.
     fCOMV = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02dCOMV_0.6452.halos' % whichPB
     fnew = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02d_0.6452.halos' % whichPB
-    fvCOMV = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02dCOMV_0.6452.halomembers.vdisp' % whichPB
-    fvnew = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02d_0.6452.halomembers.vdisp' % whichPB
+    ## not used!
+    #fvCOMV = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02dCOMV_0.6452.halomembers.vdisp' % whichPB
+    #fvnew = bosswdir.split('/boss/')[0]+'/SOmaster/PB%02d_0.6452.halomembers.vdisp' % whichPB
 
   #ifp1 = open(fCOMV,'r')
   #ifp2 = open(fnew,'r')

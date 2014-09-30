@@ -118,14 +118,14 @@ def getmatrixdiag(m):
   return diag
 
 ##read out D/R factors from pair counts headers.
-def getDRfactors(fbase):
+def getDRfactors(fbase,fend=''):
   """
   Input DR and RR filepaths.  This function reads
   DRfac and fixRRdown from that path.
   """
 
-  fDR = fbase+'.DRopt2'
-  fRR = fbase+'.DRopt3'
+  fDR = fbase+'.DRopt2'+fend
+  fRR = fbase+'.DRopt3'+fend
 
   ifpRR = open(fRR,'r')
   line = ifpRR.readline()
@@ -147,13 +147,13 @@ def getDRfactors(fbase):
 
   return DRfac, fixRR
 
-def getDRfactoronly(fbase):
+def getDRfactoronly(fbase,fend=''):
   """
   Input DR filepaths.  This function reads
   DRfac and fixRRdown from that path.
   """
 
-  fDR = fbase+'.DRopt2'
+  fDR = fbase+'.DRopt2'+fend
 
   ifpDR = open(fDR,'r')
   line = ifpDR.readline()

@@ -1,4 +1,28 @@
 import numpy as np
+import os
+import re
+
+def diffch(dir1,dir2,outfile=None):
+  """ appends diff outputs to outfile"""
+  for ff in sorted(os.listdir(dir1)):
+    if re.search('.c$',ff) or re.search('.h$',ff):
+      f1 = dir1 + ff
+      f2 = dir2 + ff
+      if outfile is None:
+        print 'start diff ',f1,f2
+        os.system('diff %s %s' % (f1,f2))
+        print 'end   diff ',f1,f2
+      else:
+        ofp = open(outfile,'a')
+        ofp.write('start diff %s %s\n' % (f1,f2))
+        ofp.close()
+        os.system('diff %s %s >> %s' % (f1,f2,outfile))
+        ofp = open(outfile,'a')
+        ofp.write('end   diff %s %s\n' % (f1,f2))
+        ofp.close()
+
+
+
 
 def rebin(v, wgt = None,istart=0,rebinsize=3):
   """
