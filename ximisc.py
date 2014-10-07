@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import copy
+import re
 
 def downsample1dsum(a,dfac):
   adown = []
@@ -165,6 +166,22 @@ def getDRfactoronly(fbase,fend=''):
   ifpDR.close()
 
   return DRfac
+
+def getDRnormswpcross(fbase):
+  i=0
+  normvec = np.zeros([4,2])
+  for DRval in [11,12,13,14]:
+    ff = fbase + ".DRopt" + str(DRval)
+    ifp = open(ff,'r')
+    for line in ifp:
+      if re.search('weight sums:',line):
+        DDwgt = float(line.split(':')[1].split(',')[0])
+        RRwgt = float(line.split(':')[1].split(',')[1])
+        normvec[i,:] = np.array([DDwgt,RRwgt])
+        i+=1
+        break
+    ifp.close()
+  return normvec
 
 def comparecovsclose(a,b,diagfracacc=0.05,offdiagnormcovabsacc=0.1):
   adiag = getmatrixdiag(a)
