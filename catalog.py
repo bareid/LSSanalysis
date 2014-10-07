@@ -190,7 +190,7 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   runopt = 2: for DRopt = 3 only, submit with nohup to run in background.
   runopt = 3: for DRopt = 1 and 2 only, run the command.
   Assuming that you are running this code from a directory containing the following folders:
-  outputdirbase + '-xiell', '-xigrid', '-wtheta', '-Hogg'
+  outputdirbase + '-xiell', '-xigrid', '-wtheta', '-wpcross'
   xibinfiles with all the appropriate bin files.
   Also assuming the ./xi executable is in this folder.
   ndownRR and rngenseed only written if DRopt = 3 or DRopt == 12,14 and rngenseed > 0 and (ndownRR - 1.0) > 0.001
@@ -257,7 +257,7 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
       outdir = outdirbase + '-wtheta'
       runp['binfname'] = "xibinfiles/bin1ang.txt"
     if whichtask == 3:
-      outdir = outdirbase + '-Hogg'
+      outdir = outdirbase + '-wpcross'
       runp['binfname'] = "xibinfiles/bin1wpsmall.txt"
    
 
