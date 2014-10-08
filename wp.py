@@ -421,7 +421,30 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
 
   return wp(wpfname=fDR,icovfname=icovfname,rpwplist=[rp1d,mywp],wpstart=wpstart,wpend=wpend)
 
+def wpcrossHogg(fbase,nbarsqrdeg,DRfacinfo=None,icovfname=None,wpstart=-1,wpend=-1):
+  """
+  Input the number density of targets per square degree.
+  DRfacinfo is used to pass [DRfac, fixRR] (dont get it from file headers in this case)
+  That feature is necessary for computing covariance matrices from bootstrap, where that factor
+  should be fixed by total N and/or S, it does not vary from bootstrap region to region.
+  """
 
+  fDD = fbase+'.DRopt11'
+  fDR = fbase+'.DRopt12'
+  fRD = fbase+'.DRopt13'
+  fRR = fbase+'.DRopt14'
+  rpg, DDg = np.loadtxt(fDD,unpack=True)
+  rpg, DRg = np.loadtxt(fDR,unpack=True)
+  rpg, RDg = np.loadtxt(fRD,unpack=True)
+  rpg, RRg = np.loadtxt(fRR,unpack=True)
+
+  nbarfac = nbarsqrdeg*(180./np.pi)**2
+
+  normfac = ximisc.getDRnormswpcross(fbase)
+  mywp = nbarfac*(DD/DR/normfac[0,0]*normfac[1,0]*normfac[1,1]-(RD/RR/normfac[2,0]*normfac[3,0]*normfac[3,1]))
+  ## argo.  
+
+    
 
 if __name__ == "__main__":
 
