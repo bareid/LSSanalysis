@@ -389,7 +389,7 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
     if nrpibins*nrpbins != len(DDg):
       return None
 
-    xi = ((DDg-DRg*DRfac)/RRg/DRfac**2 + 1.)
+    xi = ((DDg-DRg*DRfac)/RRg/DRfac**2/fixRR**2 + 1.)
 
   rpi1d = rpig.reshape(nrpbins,nrpibins)[0]
   ## check that it's linearly spaced, get drpi
