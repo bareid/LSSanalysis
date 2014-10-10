@@ -55,6 +55,24 @@ def one2twod(a,b):
 
   return a2d, b2d
 
+def getmatrixnorm(m):
+  mnorm = copy.deepcopy(m)
+  (nx, ny) = m.shape
+  for i in range(nx):
+    for j in range(ny):
+      mnorm[i,j] = m[i,j]/(m[i,i]*m[j,j])**0.5 
+  return mnorm
+
+def getmatrixdiag(m):
+  (nx, ny) = m.shape
+  if nx != ny:
+    return None
+  diag = np.zeros(nx)
+  for i in range(nx):
+    diag[i] = m[i,i]
+  return diag
+
+
 ## generate comparison to see if two results are close (enough).
 #these can be any form of xi/wp/xiell, as long as they have the same.
 def comparexi(xia, xib,maxfrac=1.e-4,maxdiff=1.e-4):
@@ -101,22 +119,24 @@ def comparegeneric(a, b,maxfrac=1.e-4,maxdiff=1.e-4):
   else:
     return 0
 
-def getmatrixnorm(m):
-  mnorm = copy.deepcopy(m)
-  (nx, ny) = m.shape
-  for i in range(nx):
-    for j in range(ny):
-      mnorm[i,j] = m[i,j]/(m[i,i]*m[j,j])**0.5 
-  return mnorm
+def comparecovsclose(a,b,diagfracacc=0.05,offdiagnormcovabsacc=0.1):
+  adiag = getmatrixdiag(a)
+  bdiag = getmatrixdiag(b)
 
-def getmatrixdiag(m):
-  (nx, ny) = m.shape
-  if nx != ny:
-    return None
-  diag = np.zeros(nx)
-  for i in range(nx):
-    diag[i] = m[i,i]
-  return diag
+  anorm = getmatrixnorm(a) 
+  bnorm = getmatrixnorm(b) 
+
+  xx1d = np.where(np.fabs(bdiag/adiag-1.) > diagfracacc)[0]
+  print len(xx1d), 'of',len(adiag), 'exceed the diagonal fractional accuracy limit'
+  xx2d = np.where(np.fabs(bnorm - anorm) > offdiagnormcovabsacc)
+  print len(xx2d[0]), 'of',len(anorm.flatten()), 'exceed the diagonal fractional accuracy limit'
+  if len(xx2d[0]) > 0:
+    print 'heres an example!',anorm[xx2d[0][0], xx2d[1][0]], bnorm[xx2d[0][0], xx2d[1][0]]
+
+  if len(xx1d) > 0 or len(xx2d[0]) > 0:
+    return 1
+  else:
+    return 0
 
 ##read out D/R factors from pair counts headers.
 def getDRfactors(fbase,fend=''):
@@ -183,25 +203,20 @@ def getDRnormswpcross(fbase):
     ifp.close()
   return normvec
 
-def comparecovsclose(a,b,diagfracacc=0.05,offdiagnormcovabsacc=0.1):
-  adiag = getmatrixdiag(a)
-  bdiag = getmatrixdiag(b)
-
-  anorm = getmatrixnorm(a) 
-  bnorm = getmatrixnorm(b) 
-
-  xx1d = np.where(np.fabs(bdiag/adiag-1.) > diagfracacc)[0]
-  print len(xx1d), 'of',len(adiag), 'exceed the diagonal fractional accuracy limit'
-  xx2d = np.where(np.fabs(bnorm - anorm) > offdiagnormcovabsacc)
-  print len(xx2d[0]), 'of',len(anorm.flatten()), 'exceed the diagonal fractional accuracy limit'
-  if len(xx2d[0]) > 0:
-    print 'heres an example!',anorm[xx2d[0][0], xx2d[1][0]], bnorm[xx2d[0][0], xx2d[1][0]]
-
-  if len(xx1d) > 0 or len(xx2d[0]) > 0:
-    return 1
-  else:
-    return 0
-
-
+def getnbarmean(nbarfname,zmin,zmax):
+  """
+  Copied from boss/bosslss/trunk/mksample/nbarutils.py.
+  This is a necessary normalization for the wpcrossHogg method to extract wp.
+  """
+  zcen,zlow,zhigh,nbar,shell_vol,total_gals = np.loadtxt(nbarfname,unpack=True,usecols=[0,1,2,3,5,6])
+  xx = np.where((zlow >= zmin*0.99999) & (zhigh <= zmax*1.00001))[0]
+  #print 'check it',zmin,zmax,zlow[xx].min(),zhigh[xx].max()
+  # if this is not true, then I need to first do a spline on nbar, and then integrate rather than sum.
+  assert zmin == zlow[xx].min()
+  assert zmax == zhigh[xx].max()
+  return (nbar[xx]*total_gals[xx]).sum()/total_gals[xx].sum()
   
+
+
+
 
