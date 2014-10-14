@@ -316,6 +316,7 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   if Nsub > 0:
     bootopt = 1
     assert Nsubdir is not None
+  print 'hi beth bootopt',bootopt
 
   assert zmin < zmax ## this should work for ang case, doesn't matter what they are.
 
@@ -371,8 +372,9 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   ## overload NSlist with all the subregion appendices
   if bootopt == 1:
     NSlist = np.arange(0,Nsub,1,dtype='int')
-    os.system('mkdir %s' % (outdir+Nsubdir))  # make sure output directory exists!
-  
+    mycmd = 'mkdir %s' % (outdir+'/'+Nsubdir+'/')
+    print 'about to run',mycmd
+    os.system(mycmd)
 
   DRoptlist = [1,2,3]
   if whichtask == 3:
@@ -385,15 +387,18 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
       runp['Dfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.dat.txt'
       runp['Rfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.ran.txt'
     else:
-      runp['Dfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.dat.txt' + '.%04d' % NS
-      runp['Rfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.ran.txt' + '.%04d' % NS
+      runp['Dfilename'] =  ddir + Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.dat.txt' + '.%04d' % NS
+      runp['Rfilename'] =  ddir + Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.ran.txt' + '.%04d' % NS
        
 
     if binfname is not None:  #override defaults!
       runp['binfname'] = binfname
 
     ## is this generic enough NOT to overwrite myself?  I think so, cattypetag should do most of the discrimination.
-    runp['foutbase'] = outdir + '/' +  Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.%04d' % NS
+    if bootopt == 0:
+      runp['foutbase'] = outdir + '/' + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + ztag
+    else:
+      runp['foutbase'] = outdir + '/' +  Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + ztag + '.%04d' % NS
     for DRopt in DRoptlist:
       if whichtask == 3:
         if bootopt == 0:
@@ -401,8 +406,8 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
           rbase = ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag2 + catappend
           fend = ''
         else:
-          dbase =  ddir + sampletag + '-' + runtag +  '-' + cattypetag + catappend
-          rbase = ddir + sampletag + '-' + runtag  + '-' + cattypetag2 + catappend
+          dbase =  ddir + Nsubdir + '/' + sampletag + '-' + runtag +  '-' + cattypetag + catappend
+          rbase = ddir + Nsubdir + '/' + sampletag + '-' + runtag  + '-' + cattypetag2 + catappend
           fend = '.%04d' % NS
 
         if DRopt == 11:
@@ -420,7 +425,6 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
          
 
       pfname = runp['foutbase'] + '-' + str(DRopt) + '.params'
-      #writexiparamfile(pfname,runp,DRopt=DRopt,targcat=targcat)
       writexiparamfile(pfname,runp,Dftype=Dftype,Rftype=Rftype,DRopt=DRopt)
       mycmd = './xi %s' % (pfname)
       cmdlist.append(mycmd)
