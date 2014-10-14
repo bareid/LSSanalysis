@@ -179,7 +179,121 @@ def writexiparamfile(pfname,runp,DRopt,Dftype=1,Rftype=1):
       ofp.write('%s = %d\n' % ('rngenseed',myrand))
   ofp.close()
 
-def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/boss/mksamplecatslatestdr12/",sampletag='cmass',runtag='dr12v4',cattypetag='Reid',NorS = 2, sysopt=1,fkpopt=0,omfid=0.292, hfid = 0.69, whichtask = 0, runopt = 0, outdirbase = 'outputdr12',fname1pw = None, binfname = None, ztag = '',cattypetag2=None):
+def catfitstotxtpatch(zmin,zmax,fdir='./',sampletag='cmass',runtag='dr12v4',cattypetag = 'Reid',NorS = 2,
+                 cpopt=2,sysopt=1,fkpopt=0,DorR=0,ftot=None,ramin=-720.,ramax=720.,decmin=-1000.,decmax=1000.):
+  """
+  copied catfitstotxt but added cut to a specified ra,dec box for testing.
+  """
+
+  assert sysopt == 0 or sysopt == 1
+  assert fkpopt == 0 or fkpopt == 1
+  assert cpopt >= 0 and cpopt <=2
+  assert DorR == 0 or DorR == 1
+
+  if sampletag == 'cmass':
+    assert sysopt == 1
+  else:
+    assert sysopt == 0
+
+  if DorR == 1:
+    assert cpopt == 0
+
+  ## enforce sanity on catalog type and weighting scheme to protect myself from screw-ups!
+  targcat = 0
+  if re.search('targ',cattypetag):
+    targcat = 1  # no redshifts!
+    assert fkpopt == 0 
+    assert cpopt == 0
+
+  elif re.search('ang',cattypetag):
+    assert fkpopt == 0 
+    if DorR == 0:
+      assert cpopt == 1
+
+  else:
+    if DorR == 0:
+      assert cpopt == 2
+
+    
+
+  catappend = ''
+  if sysopt == 1:
+    catappend = catappend + '-wsys'
+  if fkpopt == 1:
+    catappend = catappend + '-wfkp'
+
+  catappend = catappend + '-patchtest'
+
+  if ftot is not None:
+    flist = [ftot]
+    DorRlist = [DorR]
+    syslist = [sysopt]
+  ## do full pattern of data and random, N and S as indicated.
+  else:
+    flist = []
+    foutlist = []
+    DorRlist = []
+    if NorS == 0:
+      NSlist = ['N']
+    elif NorS == 1:
+      NSlist = ['S']
+    else:
+      NSlist = ['N','S']
+
+    for NS in NSlist:
+      for DRval in [0,1]:
+        if DRval == 0:
+          fname = sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + '.dat.fits'
+          fout = sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.dat.txt'
+        if DRval == 1:
+          fname = sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + '.ran.fits'
+          fout = sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.ran.txt'
+        flist.append(fdir + fname)
+        foutlist.append(fdir + fout)
+        DorRlist.append(DRval)
+
+
+  for ff, fout, DRval in zip(flist,foutlist,DorRlist):
+    dd = fitsio.read(ff)
+    print 'hi',ff,fout,DRval
+    ## logic for weighting data/randoms.
+    if cpopt == 0 or DRval == 1:
+      wgtvec = np.zeros(len(dd)) + 1.
+    if cpopt == 1 and DRval == 0:
+      wgtvec = dd['WEIGHT_NOZ']
+    if cpopt == 2 and DRval == 0:
+      wgtvec = (dd['WEIGHT_NOZ'] + dd['WEIGHT_CP'] - 1.0) 
+    if sysopt == 1 and DRval == 0:
+      wgtvec = wgtvec * dd['WEIGHT_SYSTOT']
+    if fkpopt == 1:
+      wgtvec = wgtvec * dd['WEIGHT_FKP']
+    if DRval == 0:
+      h, ii = np.histogram(dd['IMATCH'][:],bins=np.arange(-0.5,10.5,1))
+      if targcat == 0:
+        assert h[0] == 0
+        assert (h[3:] == 0).all()
+      assert (np.fabs(dd['WEIGHT_STAR']*dd['WEIGHT_SEEING'] - dd['WEIGHT_SYSTOT'])/dd['WEIGHT_SYSTOT'] < 2.0e-5).all()
+      if sysopt == 1:
+        syswgt = dd['WEIGHT_SYSTOT']*(dd['WEIGHT_NOZ'] + dd['WEIGHT_CP'] - 1.0)
+    ofp = open(fout,'w')
+    if targcat == 0:
+      for i in range(len(dd)):
+        if(dd['Z'][i] < zmin or dd['Z'][i] > zmax):
+          continue
+        if(dd['RA'][i] < ramin or dd['RA'][i] > ramax or dd['DEC'][i] < decmin or dd['DEC'][i] > decmax):
+          continue
+
+        ofp.write('%.12e %.12e %.6e %.6e\n' % (dd['RA'][i],dd['DEC'][i],dd['Z'][i],wgtvec[i])) 
+    else: ## do target catalog.
+      for i in range(len(dd)):
+        if(dd['RA'][i] < ramin or dd['RA'][i] > ramax or dd['DEC'][i] < decmin or dd['DEC'][i] > decmax):
+          continue
+        ofp.write('%.12e %.12e %.6e\n' % (dd['RA'][i],dd['DEC'][i],wgtvec[i])) 
+
+    ofp.close()
+    print 'finished printing ',ff,'with this many elements:',len(dd), 'sysopt = ',sysopt, 'fkpopt = ',fkpopt
+
+def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/boss/mksamplecatslatestdr12/",sampletag='cmass',runtag='dr12v4',cattypetag='Reid',NorS = 2, sysopt=1,fkpopt=0,omfid=0.292, hfid = 0.69, whichtask = 0, runopt = 0, outdirbase = 'outputdr12',fname1pw = None, binfname = None, ztag = '',cattypetag2=None,Nsub=-1,Nsubdir = None):
   """
   whichtask = 0: xiell
   whichtask = 1: wp (compute xi(rp,rpi))
@@ -197,6 +311,11 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   ndownDD only written if DRopt = 13,14
   cattypetag2 specifies tag for imaging catalog for the Hogg method to get wp.
   """
+
+  bootopt = 0
+  if Nsub > 0:
+    bootopt = 1
+    assert Nsubdir is not None
 
   assert zmin < zmax ## this should work for ang case, doesn't matter what they are.
 
@@ -236,6 +355,11 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   else:
     NSlist = ['N','S']
 
+  ## overload NSlist with all the subregion appendices
+  if bootopt == 1:
+    NSlist = np.arange(0,Nsub,1,dtype='int')
+    os.system('mkdir %s' % (outdir+Nsubdir))  # make sure output directory exists!
+  
 
   DRoptlist = [1,2,3]
   if whichtask == 3:
@@ -244,8 +368,14 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   for NS in NSlist:
 
     ## these are for whichtask <= 2, not Hogg.
-    runp['Dfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.dat.txt'
-    runp['Rfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.ran.txt'
+    if bootopt == 0:
+      runp['Dfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.dat.txt'
+      runp['Rfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.ran.txt'
+    else:
+      runp['Dfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.dat.txt' + '.' + NS
+      runp['Rfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.ran.txt' + '.' + NS
+      
+
 
     if whichtask == 0:
       outdir = outdirbase + '-xiell'
@@ -265,7 +395,7 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
       runp['binfname'] = binfname
 
     ## is this generic enough NOT to overwrite myself?  I think so, cattypetag should do most of the discrimination.
-    runp['foutbase'] = outdir + '/' + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + ztag
+    runp['foutbase'] = outdir + '/' +  Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.'+ NS
     for DRopt in DRoptlist:
       if whichtask == 3:
         dbase =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend
