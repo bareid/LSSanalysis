@@ -444,17 +444,18 @@ def wpcrossHogg(fbase,nbar2d,nbar3d,DRfacinfo=None,icovfname=None,wpstart=-1,wpe
     mywp = ((DDg/normfac[0,0])/(DRg/normfac[1,0]/normfac[1,1]*normfac[0,1])-(RDg/normfac[2,0])/(RRg/normfac[3,0]/normfac[3,1]*normfac[2,1]))*nbar2d/nbar3d
   else:
     print 'Beth, really need to test this before deriving a cov matrix!'
-    sys.exit(1)
+    #sys.exit(1)
     ## we want to enforce the correct global ratio of spec randoms to data and imaging randoms to data.
     ## the ratio of imaging data to random shows up in the first term as normfac[0,1]/normfac[1,1] and second term as normfac[2,1]/normfac[3,1]
     ## the ratio of spec randoms to data shows up in how big normfac[1,0]/normfac[0,0] is compared to normfac[3,0]/normfac[2,0]
     normfac = ximisc.getDRnormswpcross(fbase)
     assert normfac[0,1]/normfac[1,1] == normfac[2,1]/normfac[3,1]
     ## make sure there's not an offset ndownDD or ndownRR factor between global and local factors.
-    assert np.fabs(DRinfo[1] - normfac[0,1]/normfac[1,1])/DRinfo[1] < 0.1
-    assert np.fabs(DRinfo[0] - normfac[0,0]/normfac[2,0])/DRinfo[1] < 0.1
-    DIfac = DRinfo[1]/(normfac[0,1]/normfac[1,1])  # multiplicative renormalization of imaging randoms to data.
-    DSfac = DRinfo[0]/(normfac[0,0]/normfac[2,0])  # same.  Hope I did this correctly!  Let's see what hte variance looks like with and without this correction.
+    print 'testing',DRfacinfo,normfac[0,0]/normfac[2,0],normfac[0,1]/normfac[1,1]
+    #assert np.fabs(DRfacinfo[1] - normfac[0,1]/normfac[1,1])/DRfacinfo[1] < 0.1
+    #assert np.fabs(DRfacinfo[0] - normfac[0,0]/normfac[2,0])/DRfacinfo[1] < 0.1
+    DIfac = DRfacinfo[1]/(normfac[0,1]/normfac[1,1])  # multiplicative renormalization of imaging randoms to data.
+    DSfac = DRfacinfo[0]/(normfac[0,0]/normfac[2,0])  # same.  Hope I did this correctly!  Let's see what hte variance looks like with and without this correction.
 
     mywp = ((DDg/normfac[0,0])/(DRg/normfac[1,0]/normfac[1,1]*normfac[0,1]*DIfac)-DSfac*(RDg/normfac[2,0])/(RRg/normfac[3,0]/normfac[3,1]*normfac[2,1]*DIfac))*nbar2d/nbar3d
   
