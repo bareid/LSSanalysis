@@ -348,6 +348,19 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
   runp['ndownDD'] = ndownDD
   runp['rngenseed'] = rngenseed
 
+  if whichtask == 0:
+    outdir = outdirbase + '-xiell'
+    runp['binfname'] = "xibinfiles/bin1xiellsmallscale.txt"
+  if whichtask == 1:
+    outdir = outdirbase + '-xigrid'
+    runp['binfname'] = "xibinfiles/bin1wp.txt"
+  if whichtask == 2:
+    outdir = outdirbase + '-wtheta'
+    runp['binfname'] = "xibinfiles/bin1ang.txt"
+  if whichtask == 3:
+    outdir = outdirbase + '-wpcross'
+    runp['binfname'] = "xibinfiles/bin1wpsmall.txt"
+
   if NorS == 0:
     NSlist = ['N']
   elif NorS == 1:
@@ -372,46 +385,39 @@ def callxi(zmin,zmax,ndownRR=1.0,ndownDD=1.0,rngenseed=-1,ddir="/home/howdiedoo/
       runp['Dfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.dat.txt'
       runp['Rfilename'] =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend + '.ran.txt'
     else:
-      runp['Dfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.dat.txt' + '.' + NS
-      runp['Rfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.ran.txt' + '.' + NS
-      
-
-
-    if whichtask == 0:
-      outdir = outdirbase + '-xiell'
-      runp['binfname'] = "xibinfiles/bin1xiellsmallscale.txt"
-    if whichtask == 1:
-      outdir = outdirbase + '-xigrid'
-      runp['binfname'] = "xibinfiles/bin1wp.txt"
-    if whichtask == 2:
-      outdir = outdirbase + '-wtheta'
-      runp['binfname'] = "xibinfiles/bin1ang.txt"
-    if whichtask == 3:
-      outdir = outdirbase + '-wpcross'
-      runp['binfname'] = "xibinfiles/bin1wpsmall.txt"
-   
+      runp['Dfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.dat.txt' + '.%04d' % NS
+      runp['Rfilename'] =  ddir + Nsubdir + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.ran.txt' + '.%04d' % NS
+       
 
     if binfname is not None:  #override defaults!
       runp['binfname'] = binfname
 
     ## is this generic enough NOT to overwrite myself?  I think so, cattypetag should do most of the discrimination.
-    runp['foutbase'] = outdir + '/' +  Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.'+ NS
+    runp['foutbase'] = outdir + '/' +  Nsubdir + '/' + sampletag + '-' + runtag + '-' + cattypetag + catappend + '.%04d' % NS
     for DRopt in DRoptlist:
       if whichtask == 3:
-        dbase =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend
-        rbase = ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag2 + catappend
+        if bootopt == 0:
+          dbase =  ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag + catappend
+          rbase = ddir + sampletag + '-' + runtag + '-' + NS + '-' + cattypetag2 + catappend
+          fend = ''
+        else:
+          dbase =  ddir + sampletag + '-' + runtag +  '-' + cattypetag + catappend
+          rbase = ddir + sampletag + '-' + runtag  + '-' + cattypetag2 + catappend
+          fend = '.%04d' % NS
+
         if DRopt == 11:
-          runp['Dfilename'] = dbase + '.dat.txt' 
-          runp['Rfilename'] = rbase + '.dat.txt' 
+          runp['Dfilename'] = dbase + '.dat.txt' + fend 
+          runp['Rfilename'] = rbase + '.dat.txt' + fend
         if DRopt == 12:
-          runp['Dfilename'] = dbase + '.dat.txt' 
-          runp['Rfilename'] = rbase + '.ran.txt' 
+          runp['Dfilename'] = dbase + '.dat.txt' + fend
+          runp['Rfilename'] = rbase + '.ran.txt' + fend
         if DRopt == 13:
-          runp['Dfilename'] = dbase + '.ran.txt' 
-          runp['Rfilename'] = rbase + '.dat.txt' 
+          runp['Dfilename'] = dbase + '.ran.txt' + fend
+          runp['Rfilename'] = rbase + '.dat.txt' + fend
         if DRopt == 14:
-          runp['Dfilename'] = dbase + '.ran.txt' 
-          runp['Rfilename'] = rbase + '.ran.txt' 
+          runp['Dfilename'] = dbase + '.ran.txt' + fend
+          runp['Rfilename'] = rbase + '.ran.txt' + fend
+         
 
       pfname = runp['foutbase'] + '-' + str(DRopt) + '.params'
       #writexiparamfile(pfname,runp,DRopt=DRopt,targcat=targcat)
