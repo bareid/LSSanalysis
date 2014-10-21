@@ -8,40 +8,7 @@ import xiell
 import wp
 import xiwp
 import os
-
-## note I determined best splitxi0 and splitxi2 in 
-#/Users/bareid/work/montserratdata/boss/tiledmockboss5002redo/comparetiledmockstotruthv0.ipynb
-## for bin1.txt, it's what I put for defaults below: splitxi0=5,splitxi2=6)
-## for bin1fineMU.txt (with rperpcut), it's splitxi0=1,splitxi2=1)
-
-
-
-####### begin testing crap.
-def tmpcompare():
-  for i in range(200):
-    f1 = "testing/testo%d" % i
-    f2 = "/home/howdiedoo/boss/zdistvXlogbinsompcleverLSsmallscale/outputmksamplelatestdr10v7/dr10v7bootworphansNsub200/collidedBR-collate-cmass-dr10v7-FBBRNN-%03d_rmax48deltalog10rrebin-bin1.xielltrueNEW" % i
-    print 'diff',i
-    mystr = 'diff %s %s' % (f1, f2) 
-    os.system(mystr)
-
-def tmpcompare2():
-  for i in range(200):
-    f1 = "testing/testo%d" % i
-    f2 = "/home/howdiedoo/boss/zdistvXlogbinsompcleverLSsmallscale/outputmksamplelatestdr10v7/dr10v7bootworphansNsub200/collidedBR-collate-cmass-dr10v7-FBBRNN-%03d_rmax48deltalog10rrebin-bin1fineMU.xiellcut" % i
-    print 'diff',i
-    mystr = 'diff %s %s' % (f1, f2) 
-    os.system(mystr)
-
-def tmpcompare3():
-  for i in range(200):
-    f1 = "testing/testo%d" % i
-    f2 = "/home/howdiedoo/boss/zdistvXlogbinsompcleverLSsmallscale/outputmksamplelatestdr10v7/dr10v7bootworphansNsub200/collidedBR-collate-cmass-dr10v7-FBBRNN-%03d_rmax48deltalog10rrebin-bin1.xielltrueapproxRR" % i
-    print 'diff',i
-    mystr = 'diff %s %s' % (f1, f2) 
-    os.system(mystr)
-####### end testing crap.
-
+import boot
 
 ## begin real useful stuff.
 
@@ -57,6 +24,12 @@ def printcov(cov,fname):
     for j in range(ny):
       ofp.write('%.12e ' % (cov[i,j]))
     ofp.write('\n')
+  ofp.close()
+
+def printmean(dmean,fname):
+  ofp = open(fname,'w')
+  for i in range(len(dmean)):
+    ofp.write('%.12e\n' % (dmean[i]))
   ofp.close()
 
 def xicorrect(xiNNin, xiangin,splitxi0=5,splitxi2=6):
@@ -82,6 +55,16 @@ def xiwpcorrect(xiNNin, xiangin,splitxi0,splitxi2,wpNNin, wpangin, splitwp, wpst
   myxiell = xicorrect(xiNNin, xiangin,splitxi0,splitxi2)
   myxiwp = xiwp.xiwp(myxiell,mywp)  
   return myxiwp
+
+def xiwpvec(xiellin,wpin,wpcrossin,wpstart,wpend):
+      #dvec = xiwpvec(xitmp,wptmp,wpcrosstmp,wpstart,wpend)
+  assert wpend+1 <= len(wpcrossin.wp) ## want to check before I do the below.
+  myxi = np.concatenate((xiellin.xi0[1:], xiellin.xi2[1:])) ## skip first elt of xi0 and xi2 by default.
+  if wpend+1 > len(wpcrossin.wp):
+    return np.concatenate((myxi,wpcrossin.wp[wpstart:],wp.wp[len(wpcrossin):wpend+1]))
+  else:
+    return np.concatenate((myxi,wpcrossin.wp[wpstart:wpend+1]))
+
 
 def debiasdataandcovwp(wpNNd, wpangd, wpangdhigh, wpangdlow, wpNNm, wpangm, wp012m, splitwp, wpstart,wpend,covstatfname,fname=None):
   """
@@ -393,13 +376,20 @@ def debiasdataandcovxiMwp(xiNNd, xiangd, xiangdhigh, xiangdlow, xiNNm, xiangm, x
 
     return xiwpfinal, None
 
-def parsebootinfo(bootfile,workingdir):
+def parsebootinfo(bootfile):
+  """
+  Assumes current structure of mksamplecatslatestdr12 (input as basedir)
+  separate output directories for all the different statistics.
+  within the output directories, the subcat statistics are in nsubdir
+  Rewritten for DR12.
+  """
   ## stuff we need to get from the file.
   nsub = None
+  nsubdir = None
   pixelfname = None
-  #nsubdir = None
-  fbaseNNstart = None
-  fbaseangstart = None
+  fbase = None
+  fbasetotN = None
+  fbasetotS = None
   ## end stuff.
 
   ifp = open(bootfile,'r')
@@ -407,483 +397,175 @@ def parsebootinfo(bootfile,workingdir):
     if(re.match('nsub:',line)):
       nsub = int(line.split('nsub:')[1].strip('\n').strip(' '))
     if(re.match('pixelfname:',line)):
-      pixelfname = workingdir + line.split('pixelfname:')[1].strip('\n').strip(' ')
+      pixelfname = line.split('pixelfname:')[1].strip('\n').strip(' ')
+    if(re.match('nsubdir:',line)):
+      nsubdir = line.split('nsubdir:')[1].strip('\n').strip(' ')
 #    if(re.match('nsubdir:',line)):
 #      nsubdir = line.split('nsubdir:')[1].strip('\n').strip(' ')
-    if(re.match('fbaseNNstart:',line)):
-      fbaseNNstart = workingdir + line.split('fbaseNNstart:')[1].strip('\n').strip(' ')
-    if(re.match('fbaseangstart:',line)):
-      fbaseangstart = workingdir + line.split('fbaseangstart:')[1].strip('\n').strip(' ')
+    if(re.match('fbase:',line)):
+      fbase = line.split('fbase:')[1].strip('\n').strip(' ')
+    if(re.match('fbasetotN:',line)):
+      fbasetotN = line.split('fbasetotN:')[1].strip('\n').strip(' ')
+    if(re.match('fbasetotS:',line)):
+      fbasetotS = line.split('fbasetotS:')[1].strip('\n').strip(' ')
+    
 
+  return nsub, nsubdir, pixelfname, fbase, fbasetotN, fbasetotS
 
-    if(re.match('fbaseNNtotN:',line)):
-      fbaseNNtotN = workingdir + line.split('fbaseNNtotN:')[1].strip('\n').strip(' ')
-    if(re.match('fbaseNNtotS:',line)):
-      fbaseNNtotS = workingdir + line.split('fbaseNNtotS:')[1].strip('\n').strip(' ')
-    if(re.match('fbaseangtotN:',line)):
-      fbaseangtotN = workingdir + line.split('fbaseangtotN:')[1].strip('\n').strip(' ')
-    if(re.match('fbaseangtotS:',line)):
-      fbaseangtotS = workingdir + line.split('fbaseangtotS:')[1].strip('\n').strip(' ')
-#  print nsub, pixelfname, fbaseNNstart, fbaseangstart, fbaseNNtotN, fbaseNNtotS, fbaseangtotN, fbaseangtotS
-  return nsub, pixelfname, fbaseNNstart, fbaseangstart, fbaseNNtotN, fbaseNNtotS, fbaseangtotN, fbaseangtotS
-      
-def getpixlist(pixelfname,nsub):
-  ## read in pixels.
-  Pin = np.loadtxt(pixelfname)
-  assert len(Pin) == nsub
-  ## define dtype we need here.
-  pixlist = np.zeros(nsub,dtype=[('PID','int'),('idec','int'),('ramin','float'),('ramax','float'),('decmin','float'),('decmax','float'),('NorS','int')])
-  pixlist['PID'] = Pin[:,0]
-  pixlist['NorS'] = Pin[:,1]
-  pixlist['idec'] = Pin[:,2]
-  pixlist['ramin'] = Pin[:,4]
-  pixlist['ramax'] = Pin[:,5]
-  pixlist['decmin'] = Pin[:,6]
-  pixlist['decmax'] = Pin[:,7]
-  return pixlist
 
 ## need to get DRfac and fixRRdown from N and S, out of the files, send to xiellfromDR.
 ## copy /home/howdiedoo/boss/bootstrapdr10v7/calcxi02bootcov.py for how to deal with some linear combination of NN and
 ## ang when deriving cov.
-def getbootcov(bootfile, workingdir, covtag=None, NSortot=2, nboot = 5000000, fbaseend='_rmax48deltalog10r',\
-               xiellorwp=0,rpimax=80.,splitwp=7,wpstart=1,wpend=19,\
-               nell=3,binfile=None,rperpcut=-1.,smallRRcut=-1.,\
+def getbootcov(bootfile, basedir, outdirbase = 'outputdr12', covoutfname=None, NSortot=2, nboot = 5000000, \
+               rpimax=80.,wpstart=1,wpend=19,\
+               nell=3,rperpcut=-1.,smallRRcut=-1.,\
                dfacs=1,dfacmu=1,icovfname=None,smincut=-1.,smaxcut=1.e12,\
-               splitxi0=5,splitxi2=6,fbaseendxiell='_rmax48deltalog10r',fbaseendwp='_xigrid'):
+               binfname_xiell='xibinfiles/bin1fineMU.txt',\
+               nbar2d=[-1.,-1.],nbar3d=[-1.,-1],\
+               whichtask=4):
+## resurrect these later.
+#               splitxi0=5,splitxi2=6,splitwp=7):
   """
   Get covariance matrix.
-  fbaseend = '_rmax48deltalog10r' for xiell or '_xigrid' for wp.
+  We're going to do all tasks at once by default (4).
+  whichtask = 0: xiell
+  whichtask = 1: wp (compute xi(rp,rpi))
+  whichtask = 2: wtheta
+  whichtask = 3: Hogg spec-im cross-correlation.
+  whichtask = 4: combine xiell and wp in usual way.
+
   Third tier of stuff goes directly to xiellfromDR
-  expect splitxi0/splitxi2 [those go to xicorrect; values determined in
-  comparetiledcmockstotruthv0
-  Added functionality for wp: xiellorwp = 1, splitwp = where to go from ang to NN.
   rpimax is for wp, default is 80.
-  Leaving variable fbaseend for backward compatibility,  but if xiellorwp == 2, defaults to 
-  using fbaseendxiell and fbaseendwp
+  nbar2d,nbar3d needs to be computed separately for N and S.
   """
-  #NNorang = 0 [NN] or 1 [ang] or 2 [optimal unbiased combination, not yet written]
-  ## nevermind, that doesnt get used anywhere!!?? deleted, was the 4th elt in the list.
 
-  assert xiellorwp >= 0 and xiellorwp <= 2
+  nsub, nsubdir, pixelfname, fbase, fbasetotN, fbasetotS = parsebootinfo(bootfile=basedir+bootfile)
 
-  nsub, pixelfname, fbaseNNstart, fbaseangstart, \
-  fbaseNNtotN, fbaseNNtotS, fbaseangtotN, fbaseangtotS =  parsebootinfo(bootfile,workingdir)
+  NSlist = [0,1]
+  NStaglist = ['N','S']
 
-  if nsub is None or pixelfname is None or fbaseNNstart is None or fbaseangstart is None:
-    print 'bad boot file, getbootcov returning None!'
-    return None
-  pixlist = getpixlist(pixelfname,nsub)
+  for xx in [nsub, nsubdir, pixelfname, fbase, fbasetotN, fbasetotS]:
+    if xx is None:
+      print 'bad bootfile!'
+      return None
 
-  myfbase_NN = fbaseNNstart
-  myfbase_ang = fbaseangstart
+  b = boot.bootpix()
+  b.readregions(basedir + pixelfname)
+  assert b.nsub == nsub
 
-  if xiellorwp == 0 or xiellorwp == 1:
-    DRfacN_NN, fixRRdownN_NN = ximisc.getDRfactors(fbaseNNtotN+fbaseend)
-    DRfacS_NN, fixRRdownS_NN = ximisc.getDRfactors(fbaseNNtotS+fbaseend)
-    DRfacN_ang, fixRRdownN_ang = ximisc.getDRfactors(fbaseangtotN+fbaseend)
-    DRfacS_ang, fixRRdownS_ang = ximisc.getDRfactors(fbaseangtotS+fbaseend)
-  else: ##xiwp statistic.  xiellorwp == 2
-    ## xiell
-    DRfacN_NNxiell, fixRRdownN_NNxiell = ximisc.getDRfactors(fbaseNNtotN+fbaseendxiell)
-    DRfacS_NNxiell, fixRRdownS_NNxiell = ximisc.getDRfactors(fbaseNNtotS+fbaseendxiell)
-    DRfacN_angxiell, fixRRdownN_angxiell = ximisc.getDRfactors(fbaseangtotN+fbaseendxiell)
-    DRfacS_angxiell, fixRRdownS_angxiell = ximisc.getDRfactors(fbaseangtotS+fbaseendxiell)
-    ## wp
-    DRfacN_NNwp, fixRRdownN_NNwp = ximisc.getDRfactors(fbaseNNtotN+fbaseendwp)
-    DRfacS_NNwp, fixRRdownS_NNwp = ximisc.getDRfactors(fbaseNNtotS+fbaseendwp)
-    DRfacN_angwp, fixRRdownN_angwp = ximisc.getDRfactors(fbaseangtotN+fbaseendwp)
-    DRfacS_angwp, fixRRdownS_angwp = ximisc.getDRfactors(fbaseangtotS+fbaseendwp)
+  ## this list will be filled
+  DRinfolist = [-1,-1,-1,-1]
 
+  taglist= ['-xiell','-xigrid','-wtheta','-wpcross']
 
-  if xiellorwp == 0:
-    splittag = 'splits%d_%d' % (splitxi0,splitxi2)
-  if xiellorwp == 1:
-    splittag = 'splitswp%d_%d_%d' % (splitwp,wpstart,wpend)
-  if xiellorwp == 2:
-    splittagxiell = 'splits%d_%d' % (splitxi0,splitxi2)
-    splittagwp = 'splitswp%d_%d_%d' % (splitwp,wpstart,wpend)
-    splittag = splittagxiell+'_' + splittagwp
+  ## get global DR factors for taglist.
+  for ii in range(len(taglist)-1):
+    tag = taglist[ii]
+    tmp = np.zeros([2,2]) # first index is N or S.  DRfac, fixRR stored for each.
 
-  if binfile is not None:
-    bintag = binfile.split('/')[-1].split('.')[0]
-    covoutNN = 'covtotv7NN_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
-    covoutang = 'covtotv7ang_b%d_N%d_rebin-%s' % (nboot,nsub,bintag)
-    covoutcorr = 'covtotv7corr_b%d_N%d_rebin-%s_%s' % (nboot,nsub,bintag,splittag)
+    for NS, NStag, ff in zip(NSlist, NStaglist,[fbasetotN,fbasetotS]):
+      try:
+      #if 0==0:
+        tmp[NS,0], tmp[NS,1] = ximisc.getDRfactors(basedir + '/'+outdirbase + tag +'/'+ff)
+      except:
+        tmp[NS,:] = -1.
+    DRinfolist[ii] = tmp.copy()
+
+  ## now get DR info for wpcross.
+  ### nevermind! we reduce this to two ratios.
+  ## DRinfolist[3] = np.zeros([2,4,2])
+  DRinfolist[3] = np.zeros([2,2])
+  tag = taglist[3]
+  for NS, NStag, ff in zip(NSlist, NStaglist,[fbasetotN,fbasetotS]):
+    try:
+      normfac = ximisc.getDRnormswpcross(basedir + '/'+outdirbase + tag +'/'+ff) 
+      DRinfolist[3][NS][0] = normfac[0,0]/normfac[2,0]
+      DRinfolist[3][NS][1] = normfac[0,1]/normfac[1,1]
+    except:
+      DRinfolist[3][NS][:] = -1.
+
+  tasklist = np.zeros(4,dtype='int')
+  if whichtask == 4:
+    tasklist = np.array([1,1,0,1],dtype='int')
   else:
-    covoutNN = 'covtotv7NN_b%d_N%d' % (nboot,nsub)
-    covoutang = 'covtotv7ang_b%d_N%d' % (nboot,nsub)
-    covoutcorr = 'covtotv7corr_b%d_N%d_%s' % (nboot,nsub,splittag)
-    
+    tasklist[whichtask] = 1
 
-  if covtag is not None:
-    covoutNN = covoutNN + '_%s' % covtag
-    covoutang = covoutang + '_%s' % covtag
-    covoutcorr = covoutcorr + '_%s' % covtag
-
-  icovoutNN = 'i'+covoutNN
-  icovoutang = 'i'+covoutang
-  icovoutcorr = 'i'+covoutcorr
-
-  
-  if xiellorwp == 0 or xiellorwp == 1:
-    DRinfoN_NN = [DRfacN_NN, fixRRdownN_NN]
-    DRinfoS_NN = [DRfacS_NN, fixRRdownS_NN]
-    DRinfoN_ang = [DRfacN_ang, fixRRdownN_ang]
-    DRinfoS_ang = [DRfacS_ang, fixRRdownS_ang]
-  else:
-    #xiell
-    DRinfoN_NNxiell = [DRfacN_NNxiell, fixRRdownN_NNxiell]
-    DRinfoS_NNxiell = [DRfacS_NNxiell, fixRRdownS_NNxiell]
-    DRinfoN_angxiell = [DRfacN_angxiell, fixRRdownN_angxiell]
-    DRinfoS_angxiell = [DRfacS_angxiell, fixRRdownS_angxiell]
-    # wp
-    DRinfoN_NNwp = [DRfacN_NNwp, fixRRdownN_NNwp]
-    DRinfoS_NNwp = [DRfacS_NNwp, fixRRdownS_NNwp]
-    DRinfoN_angwp = [DRfacN_angwp, fixRRdownN_angwp]
-    DRinfoS_angwp = [DRfacS_angwp, fixRRdownS_angwp]
+  if tasklist[3] > 0:
+    assert (nbar2d[:] > 0).all()
+    assert (nbar3d[:] > 0).all()
+    assert (DRinfolist[3][:,:].flatten() > 0).all()
 
   for ns in range(nsub):
-    print ns
-    fbase_NN = myfbase_NN + ('-%03d' % (ns))+fbaseend
-    fbase_ang = myfbase_ang + ('-%03d' % (ns))+fbaseend
-    if xiellorwp == 2:
-      fbase_NNxiell = myfbase_NN + ('-%03d' % (ns))+fbaseendxiell
-      fbase_angxiell = myfbase_ang + ('-%03d' % (ns))+fbaseendxiell
-      fbase_NNwp = myfbase_NN + ('-%03d' % (ns))+fbaseendwp
-      fbase_angwp = myfbase_ang + ('-%03d' % (ns))+fbaseendwp
-
-    xx = np.where(pixlist['PID'] == ns)[0]
+    xx = np.where(b.pixlist['PID'] == ns)[0]
     assert len(xx) == 1
     assert xx[0] == ns
-    NorSval = pixlist['NorS'][xx[0]]
-    if(NorSval == 0):
-      if xiellorwp == 0 or xiellorwp == 1:
-        DRinfo_NN = DRinfoN_NN
-        DRinfo_ang = DRinfoN_ang
-      else:
-        DRinfo_NNxiell = DRinfoN_NNxiell
-        DRinfo_angxiell = DRinfoN_angxiell
-        DRinfo_NNwp = DRinfoN_NNwp
-        DRinfo_angwp = DRinfoN_angwp
+    NorSval = b.pixlist['NorS'][xx[0]]
+    for tt in range(len(tasklist)):
+      if tasklist[tt] == 0: continue
+      tag = taglist[tt]
+      ff = basedir+'/'+outdirbase + tag +'/' + nsubdir + '/' + fbase + '.%04d.Np' % (ns) 
+      if tt == 0: #xiell
+        xitmp = xiell.xiellfromDR(ff,binfile=binfname_xiell,rperpcut=rperpcut,nell=nell,smallRRcut=smallRRcut,dfacs=dfacs,dfacmu=dfacmu,smincut=smincut,smaxcut=smaxcut,DRfacinfo=DRinfolist[tt][NorSval]) 
+        dvec = xitmp.xilong
+      if tt == 1: #wp
+        wptmp = wp.wpfromDR(ff,DRfacinfo=DRinfolist[tt][NorSval],rpimax=rpimax)
+        dvec = wptmp.wp
 
-    else: #south
-      if xiellorwp == 0 or xiellorwp == 1:
-        DRinfo_NN = DRinfoS_NN
-        DRinfo_ang = DRinfoS_ang
-      else:
-        DRinfo_NNxiell = DRinfoS_NNxiell
-        DRinfo_angxiell = DRinfoS_angxiell
-        DRinfo_NNwp = DRinfoS_NNwp
-        DRinfo_angwp = DRinfoS_angwp
+      if tt == 2: #wtheta
+        wttmp = wtheta.wthetafromDR(ff,DRfacinfo=DRinfolist[tt][NorSval])
+        dvec = wttmp.wtheta
 
+      if tt == 3: #wpcross
+        wpcrosstmp = wp.wpcrossHogg(ff,DRfacinfo=DRinfolist[tt][NorSval],nbar2d=nbar2d[NorSval],nbar3d=nbar3d[NorSval])
+        dvec = wpcrosstmp.wp
 
-    if xiellorwp == 0:
-      xiinNN = xiell.xiellfromDR(fbase_NN,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_NN,smallRRcut)
-      xiinang = xiell.xiellfromDR(fbase_ang,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_ang,smallRRcut)
-      xicorr = xicorrect(xiinNN, xiinang, splitxi0, splitxi2)
-    if xiellorwp == 1:  ## doing wp
-      xiinNNtmp = wp.wpfromDR(fbase_NN,DRfacinfo=DRinfo_NN,rpimax=rpimax,icovfname=icovfname)
-      xiinangtmp = wp.wpfromDR(fbase_ang,DRfacinfo=DRinfo_ang,rpimax=rpimax,icovfname=icovfname)
+    if whichtask == 4:
+      dvec = xiwpvec(xitmp,wptmp,wpcrosstmp,wpstart,wpend)
 
-      ## these are for later, saving cov of NN and ang separately.
-      xiinNN = wp.wpfromDR(fbase_NN,DRfacinfo=DRinfo_NN,rpimax=rpimax,icovfname=icovfname,wpstart=wpstart,wpend=wpend)
-      xiinang = wp.wpfromDR(fbase_ang,DRfacinfo=DRinfo_ang,rpimax=rpimax,icovfname=icovfname,wpstart=wpstart,wpend=wpend)
-
-      ##wpstart,end not already applied to this NN and ang!
-      xicorr = wpcorrect(xiinNNtmp,xiinangtmp,splitwp,wpstart,wpend)
-
-    if xiellorwp == 2:  ##doing xiwp
-      xiinNNxiell = xiell.xiellfromDR(fbase_NNxiell,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_NNxiell,smallRRcut)
-      xiinangxiell = xiell.xiellfromDR(fbase_angxiell,nell,binfile,rperpcut,dfacs,dfacmu,icovfname,smincut,smaxcut,DRinfo_angxiell,smallRRcut)
-
-      xiinNNwptmp = wp.wpfromDR(fbase_NNwp,DRfacinfo=DRinfo_NNwp,rpimax=rpimax,icovfname=icovfname)
-      xiinangwptmp = wp.wpfromDR(fbase_angwp,DRfacinfo=DRinfo_angwp,rpimax=rpimax,icovfname=icovfname)
-
-      xiinNNwp = wp.wpfromDR(fbase_NNwp,DRfacinfo=DRinfo_NNwp,rpimax=rpimax,icovfname=icovfname,wpstart=wpstart,wpend=wpend)
-      xiinangwp = wp.wpfromDR(fbase_angwp,DRfacinfo=DRinfo_angwp,rpimax=rpimax,icovfname=icovfname,wpstart=wpstart,wpend=wpend)
-      xiinNN = xiwp.xiwp(xiinNNxiell,xiinNNwp)
-      xiinang = xiwp.xiwp(xiinangxiell,xiinangwp)
-      xicorr = xiwpcorrect(xiinNNxiell, xiinangxiell,splitxi0,splitxi2,xiinNNwptmp, xiinangwptmp, splitwp, wpstart, wpend)
-
-    ## tmp!  we tested to make sure we recovered the same correlation fxns as with old code.  Good!
-    #tmpfname = "testing/testo%d" % ns
-    #xiin.printxiellshort(tmpfname)
-    if(ns == 0):
-      if(xiellorwp == 0):
-        ndata = xiinNN.ndata
-        ndatacorr = ndata
-      if(xiellorwp == 1):
-        ndata = len(xiinNN.wp)
-        ndatacorr = len(xicorr.wp)
-      if(xiellorwp == 2):
-        ndata = xiinNN.ntot
-        ndatacorr = ndata
-
-      xilistNN = np.zeros([nsub,ndata],dtype='float128')
-      xilistang = np.zeros([nsub,ndata],dtype='float128')
-      xilistcorr = np.zeros([nsub,ndatacorr],dtype='float128')
-    if(xiellorwp == 0):
-      xilistNN[ns,:] = xiinNN.xilong
-      xilistang[ns,:] = xiinang.xilong
-      xilistcorr[ns,:] = xicorr.xilong
-    if(xiellorwp == 1):
-      xilistNN[ns,:] = xiinNN.wp
-      xilistang[ns,:] = xiinang.wp
-      xilistcorr[ns,:] = xicorr.wp
-    if(xiellorwp == 2):
-      xilistNN[ns,:] = xiinNN.xiwp
-      xilistang[ns,:] = xiinang.xiwp
-      xilistcorr[ns,:] = xicorr.xiwp
+    if ns == 0:  ## allocate!
+      ndata = len(dvec)
+      dveclist = np.zeros([nsub,ndata],dtype='float128')
+    dveclist[ns,:] = dvec[:]
 
   ## check means with total counts.
-  nindx = np.where(pixlist['NorS'] == 0)[0]
-  sindx = np.where(pixlist['NorS'] == 1)[0]
-  print 'N/S: ',len(nindx), len(sindx)
+  nindx = np.where(b.pixlist['NorS'] == 0)[0]
+  sindx = np.where(b.pixlist['NorS'] == 1)[0]
+  nsindx = np.where((b.pixlist['NorS'] == 0) | (b.pixlist['NorS'] == 1))[0]
+  print 'N/S: ',len(nindx), len(sindx), len(nsindx)
+  assert len(nsindx) == nsub
+  assert (nsindx == np.arange(0,nsub,1,dtype='int')).all()
+  myindx= nsindx
+  ## assume we want nsindx for this, but can restore N/S option later if I want.
 
-  ## now compute mean and bootstrap errors:
-  if(NSortot == 0):
-    ximeanNN = (xilistNN[nindx,:]).sum(axis=0)/float(len(nindx))
-    ximeanang = (xilistang[nindx,:]).sum(axis=0)/float(len(nindx))
-    ximeancorr = (xilistcorr[nindx,:]).sum(axis=0)/float(len(nindx))
-    ntot = len(nindx)
-    ## restrict xilist to N only
-    xilistNN = xlistNN[nindx,:]
-    xilistang = xlistang[nindx,:]
-    xilistcorr = xlistcorr[nindx,:]
+  dmean = (dveclist[myindx,:]).sum(axis=0)/float(len(myindx))
+  ntot = len(myindx)
+  ntotflt = float(ntot)
 
-  if(NSortot == 1):
-    ximeanNN = (xilistNN[sindx,:]).sum(axis=0)/float(len(sindx))
-    ximeanang = (xilistang[sindx,:]).sum(axis=0)/float(len(sindx))
-    ximeancorr = (xilistcorr[sindx,:]).sum(axis=0)/float(len(sindx))
-    ntot = len(sindx)
-    ## restrict xilist to S only
-    xilistNN = xlistNN[sindx,:]
-    xilistang = xlistang[sindx,:]
-    xilistcorr = xlistcorr[sindx,:]
+  print 'hi beth'
+  print dmean
 
-  if(NSortot == 2):
-    ximeanNN = xilistNN.sum(axis=0)/float(nsub)
-    ximeanang = xilistang.sum(axis=0)/float(nsub)
-    ximeancorr = xilistcorr.sum(axis=0)/float(nsub)
-    ntot = nsub
- 
-  xitotNN = np.zeros(ndata,dtype='float128')
-  xitotang = np.zeros(ndata,dtype='float128')
-  xitotcorr = np.zeros(ndatacorr,dtype='float128')
-  CguessNN = np.zeros([ndata,ndata],dtype='float128')
-  Cguessang = np.zeros([ndata,ndata],dtype='float128')
-  Cguesscorr = np.zeros([ndatacorr,ndatacorr],dtype='float128')
-
+  Cmat = np.zeros([ndata,ndata],dtype='float128')
   for b in range(nboot):
     rr = np.random.random_integers(0,ntot-1,ntot)
-    xitrialNN = (xilistNN[rr,:]).sum(axis=0)/float(ntot)
-    xitrialang = (xilistang[rr,:]).sum(axis=0)/float(ntot)
-    xitrialcorr = (xilistcorr[rr,:]).sum(axis=0)/float(ntot)
-    xvecNN = np.matrix([xitrialNN-ximeanNN])
-    xvecang = np.matrix([xitrialang-ximeanang])
-    xveccorr = np.matrix([xitrialcorr-ximeancorr])
-    CguessNN += (xvecNN.T*xvecNN)
-    Cguessang += (xvecang.T*xvecang)
-    Cguesscorr += (xveccorr.T*xveccorr)
+    dtrial = (dveclist[rr,:]).sum(axis=0)/ntotflt
+    xvec = np.matrix([dtrial-dmean])
+    Cmat += (xvec.T*xvec)
 
-  CguessNN = CguessNN/float(nboot-1)
-  Cguessang = Cguessang/float(nboot-1)
-  Cguesscorr = Cguesscorr/float(nboot-1)
-
-  ## put this back in after tests.
-  #### now let's compute icov for all these.
-  ## eqn 17 of 0608064:
-  p = len(CguessNN[:,0])
-  unbiasicov = float(ntot - p - 2)/float(ntot-1)
-
-  CguessNN = np.matrix(CguessNN,dtype='float64')
-  invCguessNN = CguessNN.I*unbiasicov 
-  printcov(CguessNN,covoutNN)
-  printcov(invCguessNN,icovoutNN)
-
-  Cguessang = np.matrix(Cguessang,dtype='float64')
-  invCguessang = Cguessang.I*unbiasicov 
-  printcov(Cguessang,covoutang)
-  printcov(invCguessang,icovoutang)
-
-  Cguesscorr = np.matrix(Cguesscorr,dtype='float64')
-  invCguesscorr = Cguesscorr.I*unbiasicov 
-  printcov(Cguesscorr,covoutcorr)
-  printcov(invCguesscorr,icovoutcorr)
-
-  return CguessNN, invCguessNN, Cguessang, invCguessang, Cguesscorr, invCguesscorr
-
-def covaddsys(covfname,splitxi0=5,splitxi2=6):
-  """
-  input statistical "corr" covariance matrix filename.
-  we infer splitxi0/2 from the filename.
-  """
-  ## check that the splits match the statistical cov file names.
-  ## BETHHERE!! 
-
-def getpixlistcolors(pixlist,clist):
-  """
-  Blah
-  """
-  mycsorted = {}
-  pixlistcpy = copy.deepcopy(pixlist)
-  ## don't screw up original list
-  pixlistcpy.sort(order=('idec','ramin'))
-  npix = len(pixlist['PID'])
-  nn = 0
-  ncolors = len(clist)
-  icstart = 0
-  ic = icstart
-  mycsorted[pixlistcpy['PID'][nn]] = clist[ic % ncolors]
-  curridec = pixlistcpy['idec'][nn]
-  ic += 1
-  nn += 1
-  while nn < npix:
-    while pixlistcpy['idec'][nn] == curridec:
-      mycsorted[pixlistcpy['PID'][nn]] = clist[ic % ncolors]
-      ic += 1
-      nn += 1
-      if nn == npix:
-        break
-    if nn == npix:
-      break
-    ## otherwise, new row!
-    icstart = icstart + 1
-    ic = icstart
-    mycsorted[pixlistcpy['PID'][nn]] = clist[ic % ncolors]
-    curridec = pixlistcpy['idec'][nn]
-    ic += 1
-    nn += 1
-      
-  return mycsorted ## returns dictionary of color for each pixel value.
-
-## plot bootstrap regions.
-## copying from ~/boss/bootstrap/plotbootregionsworphans.py
-def plotbootstrapregions(bootfile, workingdir,ax=None,lw=3,plotstr='k-',clist=['b.','g.','r.','c.','m.'],Doutbase='/home/howdiedoo/boss/mksamplecatslatestdr10/v7/threed/dr10v7bootworphansNsub200/collidedBR-collate-cmass-dr10v7-FBBRNN.txt'):
-  """
-  Blah.
-  """
-  nclist = len(clist)
-
-  if ax is None:
-    ff = plt.figure(figsize=[6,6])
-    ax=ff.add_subplot(1,1,1)
-  else:
-    ff = None
-
-
-  nsub, pixelfname, fbaseNNstart, fbaseangstart, \
-  fbaseNNtotN, fbaseNNtotS, fbaseangtotN, fbaseangtotS =  parsebootinfo(bootfile,workingdir)
-
-  if nsub is None or pixelfname is None or fbaseNNstart is None or fbaseangstart is None:
-    print 'bad boot file, getbootcov returning None!'
-    return None
-  pixlist = getpixlist(pixelfname,nsub)
-  mycdict = getpixlistcolors(pixlist,clist)
-
-  ## convert back to degrees.
-  radtodeg = 180./np.pi
-  pixlist['ramin'] = pixlist['ramin']*radtodeg
-  pixlist['ramax'] = pixlist['ramax']*radtodeg
-  pixlist['decmin'] = pixlist['decmin']*radtodeg
-  pixlist['decmax'] = pixlist['decmax']*radtodeg
+  Cmat = Cmat/float(nboot-1)
+  Cmat = np.matrix(Cmat,dtype='float64')
+  iCmat = Cmat.I ##
+  print 'not assuming any bootstrap unbias factor for now!'
+  if covoutfname is not None:
+    printcov(Cmat,covoutfname)
+    printcov(iCmat,covoutfname+'.inv')
+    printmean(dmean,covoutfname+'.mean')
+  return Cmat, iCmat, dmean
 
 
 
-  for ns in range(nsub):
-    ### bring back after I set up colors.
-    ffD = Doutbase+'.'+str(ns)
-    raD, decD = np.loadtxt(ffD,unpack=True,usecols=[0,1])
-    raD = raD - 90.0
-    xxD = np.where(raD < 0.)[0]
-    if(len(xxD) > 0):
-      raD[xxD] += 360.
-    plt.plot(raD,decD,mycdict[ns])
-
-  for ns in range(nsub):
-    plt.plot([pixlist['ramin'][ns], pixlist['ramin'][ns]], [pixlist['decmin'][ns], pixlist['decmax'][ns]],plotstr,linewidth=lw)
-    plt.plot([pixlist['ramax'][ns], pixlist['ramax'][ns]], [pixlist['decmin'][ns], pixlist['decmax'][ns]],plotstr,linewidth=lw)
-    plt.plot([pixlist['ramin'][ns], pixlist['ramax'][ns]], [pixlist['decmin'][ns], pixlist['decmin'][ns]],plotstr,linewidth=lw)
-    plt.plot([pixlist['ramin'][ns], pixlist['ramax'][ns]], [pixlist['decmax'][ns], pixlist['decmax'][ns]],plotstr,linewidth=lw)
-
-  return ff, ax
-
-def plotbootstrapcumhist(bootfile,workingdir,ax=None,fcatbase='/home/howdiedoo/boss/mksamplecatslatestdr10/v7/threed/dr10v7bootworphansNsub200/collidedBR-collate-cmass-dr10v7-FBBRNN'):
-
-  Doutbase = fcatbase + '.txt'
-  Routbase = fcatbase + '.ran.txt'
-
-  if ax is None:
-    ff = plt.figure(figsize=[6,6])
-    ax=ff.add_subplot(1,1,1)
-  else:
-    ff = None
-
-  nsub, pixelfname, fbaseNNstart, fbaseangstart, \
-  fbaseNNtotN, fbaseNNtotS, fbaseangtotN, fbaseangtotS =  parsebootinfo(bootfile,workingdir)
-
-  if nsub is None or pixelfname is None or fbaseNNstart is None or fbaseangstart is None:
-    print 'bad boot file, getbootcov returning None!'
-    return None
-  pixlist = getpixlist(pixelfname,nsub)
-
-  ## convert back to degrees.
-  radtodeg = 180./np.pi
-  pixlist['ramin'] = pixlist['ramin']*radtodeg
-  pixlist['ramax'] = pixlist['ramax']*radtodeg
-  pixlist['decmin'] = pixlist['decmin']*radtodeg
-  pixlist['decmax'] = pixlist['decmax']*radtodeg
-
-  nDlist = []
-  nRlist = []
-
-  for ns in range(nsub):
-    ### bring back after I set up colors.
-    ffD = Doutbase+'.'+str(ns)
-    ffR = Routbase+'.'+str(ns)
-    #raD, decD = np.loadtxt(ffD,unpack=True,usecols=[0,1])
-    #raR, decR = N.loadtxt(ffR,unpack=True,usecols=[0,1])
-    raD, wgtD = np.loadtxt(ffD,unpack=True,usecols=[0,3])
-    raR, wgtR = np.loadtxt(ffR,unpack=True,usecols=[0,3])
-    nDlist.append(float(wgtD.sum()))
-    nRlist.append(float(wgtR.sum()))
-
-  return np.array(nDlist), np.array(nRlist)
-    
-  
 
 
 
-if __name__ == '__main__':
-  #parsebootinfo('/home/howdiedoo/boss/bootstrapdr10v7/bootNsub200.dat','/home/howdiedoo/boss/')
-  parsebootinfo('/home/howdiedoo/boss/bootstrapdr10v7/bootNsub200.dat','/home/howdiedoo/boss/')
-  workingdir = '/home/howdiedoo/boss/'
-  workingdir = '/home/howdiedoo/boss/'
-  bootfile = workingdir + 'bootstrapdr10v7/bootNsub200.dat'
-  binfile = workingdir + 'zdistvXlogbinsompcleverLSsmallscale/bin1.txt'
-  binfile2 = workingdir + 'zdistvXlogbinsompcleverLSsmallscale/bin1fineMU.txt'
-  covtag = 'testo'
-
-  ##passed!
-  #getbootcov(bootfile, workingdir, covtag, nboot = 50000, binfile=binfile)
-  #print 'running tmpcompare now!'
-  #tmpcompare()
-
-  ##passed!
-  #getbootcov(bootfile, workingdir, covtag, nboot = 50000, binfile=binfile,smallRRcut=400.)
-  #print 'running tmpcompare3 now for approxRR!'
-  #tmpcompare3()
-
-
-  ## now we want to compare xiellcut.
-  getbootcov(bootfile, workingdir, covtag, nboot = 50000, binfile=binfile2,rperpcut=5.336546e-01)
-  print 'running tmpcompare2 now for xiellcut!'
-  tmpcompare2()
-  ## passed!  there are tiny differences still in inner bin (most are much smaller)
-  ## anyway, they are much different than the statistical errors.  But i will print the bin file
-  ## just in case.
-#< 7.852356e-01 1.632387e+01 -2.219600e+00 -1.323648e+01
-#> 7.852356e-01 1.643968e+01 -1.921517e+00 -1.340287e+01
 
 
 

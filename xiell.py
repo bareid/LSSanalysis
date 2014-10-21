@@ -188,6 +188,8 @@ class xiell:
           self.icov = cov.I
         if(len(cov[:,0]) > self.ndata):  ## need to select desired rows/cols from the covariance matrix.
           cov = np.array(cov)
+#tmp!
+          print self.ndata, len(cov[:,0])
           x, y = np.meshgrid(stmp,stmp)
           ikeep = np.where((x >= smincut) & (x <= smaxcut) & (y >= smincut) & (y <= smaxcut))
           assert (x[ikeep] >= smincut).all()
