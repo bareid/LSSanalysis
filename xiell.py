@@ -522,7 +522,7 @@ class xiell:
     if(self.nell == 1):
       return 0
     else:
-      assert (np.fabs(s0 - s2) < 2.0e-4).all()
+      assert (np.fabs(self.s0 - self.s2) < 2.0e-4).all()
     return 0
 
   #### proper indentation -- cannot be part of the class.

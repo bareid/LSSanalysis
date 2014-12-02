@@ -511,8 +511,6 @@ def plotdiagcov(ax,cov,scalevec=None,xvec=None,subindx=None,plotstr='k-'):
 
   if xvec is None:
     xvec = np.arange(0,len(diagerr)-0.5,1)
-  #print xvec.shape
-  #print diagerr.shape
   ax.plot(xvec,diagerr,plotstr)
   
 def getnormcov(cov,subindx1=None,subindx2=None):

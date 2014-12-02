@@ -152,6 +152,26 @@ def contourplotgeneric(vx,vy,wgt=None,ax=None,wgtopt=1,\
   else:
     ax.contour(xcen,ycen,Hflip,levels=clist,linestyles=linestyle,colors=color,linewidths=linewidths)
 
+## copied from http://stackoverflow.com/questions/1201817/adding-a-field-to-a-structured-numpy-array
+def add_fields(a, descr):
+  """
+  Return a new array that is like "a", but has additional fields.
+
+    Arguments:
+      a     -- a structured numpy array
+      descr -- a numpy type description of the new fields
+
+    The contents of "a" are copied over to the appropriate fields in
+    the new array, whereas the new fields are uninitialized.  The
+    arguments are not modified.
+  """
+
+  if a.dtype.fields is None:
+    raise ValueError, "`A' must be a structured numpy array"
+  b = np.empty(a.shape, dtype=a.dtype.descr + descr)
+  for name in a.dtype.names:
+    b[name] = a[name]
+  return b
 
 class chain:
   def __init__(self,chainfname,colfname,takelog10m=0):
@@ -183,7 +203,13 @@ class chain:
     try:
       cc = np.genfromtxt(chainfname,names=names)
     except:
-      print 'misamtch between %s and %s.  Returning None!' % (chainfname,names)
+      print 'misamtch between %s and %s, or screwed up weights.  Returning None!' % (chainfname,names)
+
+    if not 'weight' in names:
+#      print 'this chain has no weight column.  Adding one with all zeros'
+      cc = add_fields(cc,[('weight','float64')])
+      cc['weight'][:] = 1.0
+
     if takelog10m == 1:
       cc['M_min'][:] = np.log10(cc['M_min'][:])
       cc['M1'][:] = np.log10(cc['M1'][:])
@@ -512,8 +538,71 @@ class chain:
 ## how do we fill between two curves instead.
     ax.set_xscale('log')
     return ff, ax
- 
 
+  def analyzeMWchain(self,omfid,hfid,obh2fid,zeff,sig8zeff):
+    """
+    Assumes a chain of MW format [f,nu,
+    Generates bsig8, DV, FAP, DA, H, fs8 columns from MW chain.
+    """
+    import cosmo
+
+    def peak_background_bias(nu):
+      """
+      peak_background_bias(nu):
+      Returns the Lagrangian biases, (b1,b2), given nu.
+      This is helpful if we want to make our basis set f, nu and sFog.
+      """
+      delc = 1.686
+      a    = 0.707
+      p    = 0.30
+      anu2 = a*nu**2
+      b1   = (anu2-1+2*p/(1+anu2**p))/delc
+      b2   = (anu2**2-3*anu2+2*p*(2*anu2+2*p-1)/(1+anu2**p))/delc**2
+      return( (b1,b2) )
+
+    descrnew = [('bs8','float64'),('fs8','float64'),\
+             ('DV','float64'),('FAP','float64'),\
+             ('DA','float64'),('H','float64')]
+
+
+    self.chain = add_fields(self.chain, descrnew)
+    self.chain['fs8'][:] = self.chain['f']*sig8zeff
+    for ii in range(len(self.chain['bs8'][:])):
+      b1, b2 = peak_background_bias(self.chain['nu'][ii])
+      self.chain['bs8'][ii] = b1*sig8zeff
+
+    omh2 = omfid*hfid**2
+    och2fid = omh2 - obh2fid
+    cc = cosmo.cosmo(och2=och2fid,obh2=obh2fid,h=hfid)
+    aeff = 1./(1+zeff)
+    DAzeff = cc.DAz(aeff)  ## Mpc.
+    Hzeff = cc.Hofz(aeff)
+    FAPzeff = DAzeff*Hzeff/(cosmo.DH*100.)  ## c = cosmo.DH*100. in km/s units
+    DVzeff = (DAzeff*DAzeff*cosmo.DH*100.*zeff/Hzeff)**(1./3.)
+    self.chain['DV'] = DVzeff * (self.chain['alpha_perp']**2 * self.chain['alpha_par'])**(1./3.)
+    self.chain['DA'] = DAzeff * self.chain['alpha_perp']
+    self.chain['H'] = Hzeff / self.chain['alpha_par']
+    self.chain['FAP'] = FAPzeff * self.chain['alpha_perp']/self.chain['alpha_par']
+    self.DAfid = DAzeff
+    self.Hfid = Hzeff
+    self.DVfid = DVzeff
+    self.zeff = zeff
+    self.sig8zeff = sig8zeff
+
+    ## fill in 3x3 DV, FAP, fs8
+    pcov = np.zeros([3,3])
+    m = np.zeros(3)
+    wgtsum = (self.chain['weight'][:]).sum()
+    assert (wgtsum - len(self.chain['weight'])) < 0.0001  ## MW chains are unweighted.
+    for ni,i in zip(['DV','FAP','fs8'],range(3)):
+      m[i] = (self.chain['weight']*self.chain[ni]).sum()/wgtsum
+
+    for ni,i in zip(['DV','FAP','fs8'],range(3)):
+      for nj,j in zip(['DV','FAP','fs8'],range(3)):
+        pcov[i,j] = (self.chain[ni][:] * self.chain[nj][:] * self.chain['weight'][:]).sum()/wgtsum - \
+                     m[i]*m[j]
+
+    self.pcov = pcov
 
 def combinesteps(m1,m2,m1rescale,m2rescale):
   """
@@ -593,4 +682,5 @@ def writetablefmt2(clist,clabel,fs8list,fname,boldfixedopt=0,boldcollist=[]):
     ofp.write("%s\n" % (mystr))
   ofp.close()
   #return mystr
+
 

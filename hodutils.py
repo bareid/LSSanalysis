@@ -10,6 +10,116 @@ import os
 import re
 import mcmcutils
 
+def runBFfromchainbat(chainbatfname,writecat=None,PBold=None,PBnew=None):
+  """
+  Scrape the .bat file for the chain, keep settings the same.
+  Open chain and find the best fit.
+  writecat is the filename to write the catalog to.
+  If you want to swap PBold in the bat file for PBnew 
+  (example PBold = PB00, PBnew = PB01), set them both to not None.
+  """
+
+  doswap = 0
+  if PBold is not None and PBnew is not None:
+    doswap = 1
+    assert writecat is not None
+    ## note could set this up to do other tasks, but need to also edit FASTP_FBASE and FASTP_FBASE
+
+  batfp = open(chainbatfname,'r')
+  if doswap == 0:
+    outfname = chainbatfname.split('.bat')[0] + '.BF.bat'
+  else:
+    outfname = chainbatfname.split('.bat')[0] + '.BF.Run%s.bat' % (PBnew)
+  ofp = open(outfname,'w')
+  for line in batfp:
+    if writecat is not None:
+      if re.search("^USE_FASTP_COUNTS",line):
+        ofp.write('USE_FASTP_COUNTS      0\n')
+        continue
+      if re.search("^WRITE_CAT",line):
+        ofp.write('WRITE_CAT      1\n')
+        continue
+      if re.search("^CATFNAME",line):
+        ofp.write('CATFNAME      %s\n' % (writecat))
+        continue
+
+    if re.search('^PARAMFNAME',line):
+      continue
+      #ofp.write('PARAMFNAME     blah\n')
+
+    elif re.search("^OUTFILETAG",line):
+      outfiletag = line.split('OUTFILETAG')[1]
+      ## remove spaces.
+      outfiletag = outfiletag.strip(' ').strip('\n')
+
+    elif re.search("^MCMCOPT",line):
+      ofp.write('MCMCOPT     0\n')
+    elif re.search("^CHAINNUM",line):
+      chainnum = int(line.split('CHAINNUM')[1].split('%')[0].strip(' ').strip('\n'))
+      ofp.write('%s' % (line))
+    elif re.search('^HVSCALE',line) or re.search('^IHVSCALE',line) or re.search('CENVFRAC',line):
+      continue
+    elif doswap == 1 and (re.search('^HaloFileName',line) or re.search('HaloDmFileName',line)):
+      newline = PBnew.join(line.split(PBold))
+      print 'new line'
+      print newline
+      ofp.write(newline)
+    else:
+      ofp.write(line)
+
+  chainfname = 'chains/' + outfiletag + '_' + str(chainnum) + '.chain'
+  ## read chain.
+  ## get best fit params from chain file.
+  cc = mcmcutils.chain(chainfname,colfname='chains/stdcols.dat')
+  xbest = np.where(cc.chain['chi2_tot'] == cc.chain['chi2_tot'].min())[0]
+  celt = cc.chain[xbest]
+  print celt
+  logopt = 0
+  if celt['M_min'] < 1e10:
+    logopt = 1 
+
+  if logopt == 1:
+    Mmin = 10**(celt['M_min'])
+    Mcut = 10**(celt['M_cut'])
+    M1 = 10**(celt['M1'])
+  else:
+    Mmin = (celt['M_min'])
+    Mcut = (celt['M_cut'])
+    M1 = (celt['M1'])
+
+  myihv = celt['ihvscale']
+  mycenv = celt['cenvfrac']
+  myhv = celt['hvscale']
+
+
+  outnew = outfiletag + '_' + str(chainnum) + '.chain.BF'
+  paramfnameout = 'hodparams/' + outnew + '.hod'
+  paramfnamein = outnew + '.hod'
+
+  ## write param file.
+  alpha = celt['alpha']
+  sigmalogM = celt['sigma_logM']
+
+  ofpp = open(paramfnameout,'w')
+  for pp in [Mmin, sigmalogM, M1, alpha, Mcut]:
+    ofpp.write('%e\n' % (pp))
+  ofpp.close()
+
+  if doswap == 1:
+    ofp.write('OUTFILETAG     %s\n' % (outnew+PBnew))
+  else:
+    ofp.write('OUTFILETAG     %s\n' % (outnew))
+  ofp.write('PARAMFNAME     %s\n' % (paramfnamein))
+  ofp.write('IHVSCALE     %f\n' % (myihv))
+  ofp.write('HVSCALE     %f\n' % (myhv))
+  ofp.write('CENVFRAC     %f\n' % (mycenv))
+  ofp.close()
+
+
+  mystr = './runall %s' % (outfname)
+  print mystr
+  os.system(mystr)
+  
 
 def runmodel(Mmin=1.1460142e+13,M1=1.57663077e+14,alpha=1.298719e+00,\
              Mcut=3.238620e+11,sigmalogM=3.40466e-01,\
