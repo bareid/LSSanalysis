@@ -603,6 +603,31 @@ class chain:
                      m[i]*m[j]
 
     self.pcov = pcov
+    self.icov = np.linalg.inv(self.pcov)
+
+
+  def chi2_3x3(self,v1,v2=None):
+    if v2 is None:
+      try:
+        wgtsum = self.chain['weight'].sum()
+        diff = np.zeros(3)
+        for ni,i in zip(['DV', 'FAP', 'fs8'], range(3)):
+          diff[i] = v1[i] - (self.chain[ni]*self.chain['weight']).sum()/wgtsum
+      except:
+        return 0.
+    else:
+      diff = v1-v2
+    chi2chk = 0.
+    for i in range(3):
+      for j in range(3):
+        chi2chk += self.icov[i,j]*diff[i]*diff[j]
+
+    chi2 = (np.matrix(diff)*np.matrix(self.icov)*np.matrix(diff).T)[0,0]
+    assert np.fabs(chi2chk - chi2) < 0.001
+    return chi2
+
+      
+    
 
 def combinesteps(m1,m2,m1rescale,m2rescale):
   """

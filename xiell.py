@@ -567,6 +567,24 @@ def weightsum(xiinlist,wgtlist):
   ximean = ximean/float(wgtsum)
   return xiell(sxilist=[xiinlist[0].svec, ximean])
 
+def weightsumvar(xiinlist,wgtlist):
+  """
+  returns diagonal variance, correcting for n/(n-1) factor.
+  """
+  ximean = weightsum(xiinlist,wgtlist)
+  ximeanchk = np.zeros_like(ximean.xilong)
+  xivar = np.zeros_like(ximean.xilong)
+  for ii in range(len(xiinlist)):
+    ximeanchk[:] += xiinlist[ii].xilong[:]
+    xivar[:] += xiinlist[ii].xilong[:]*xiinlist[ii].xilong[:]
+
+  ximeanchk = ximeanchk/float(len(xiinlist))
+  xivar = xivar/float(len(xiinlist))
+  assert (np.fabs(ximeanchk - ximean.xilong) < 2.0e-6).all()
+
+  xivar = xivar - ximeanchk**2
+  return xivar*float(len(xiinlist))/float(len(xiinlist)-1.)
+
 
 ## has this function been tested??
 
