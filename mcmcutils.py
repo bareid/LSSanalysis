@@ -569,7 +569,7 @@ class chain:
     self.chain['fs8'][:] = self.chain['f']*sig8zeff
     for ii in range(len(self.chain['bs8'][:])):
       b1, b2 = peak_background_bias(self.chain['nu'][ii])
-      self.chain['bs8'][ii] = b1*sig8zeff
+      self.chain['bs8'][ii] = (1+b1)*sig8zeff
 
     omh2 = omfid*hfid**2
     och2fid = omh2 - obh2fid
