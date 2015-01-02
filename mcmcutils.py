@@ -593,7 +593,8 @@ class chain:
     pcov = np.zeros([3,3])
     m = np.zeros(3)
     wgtsum = (self.chain['weight'][:]).sum()
-    assert (wgtsum - len(self.chain['weight'])) < 0.0001  ## MW chains are unweighted.
+    ## not if we allow prior!!
+    #assert (wgtsum - len(self.chain['weight'])) < 0.0001  ## MW chains are unweighted.
     for ni,i in zip(['DV','FAP','fs8'],range(3)):
       m[i] = (self.chain['weight']*self.chain[ni]).sum()/wgtsum
 
@@ -602,6 +603,7 @@ class chain:
         pcov[i,j] = (self.chain[ni][:] * self.chain[nj][:] * self.chain['weight'][:]).sum()/wgtsum - \
                      m[i]*m[j]
 
+    self.m3x3 = m
     self.pcov = pcov
     self.icov = np.linalg.inv(self.pcov)
 
