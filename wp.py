@@ -468,6 +468,42 @@ def wpcrossHogg(fbase,nbar2d,nbar3d,DRfacinfo=None,icovfname=None,wpstart=-1,wpe
   #print 'heyo',mywp
   return wp(wpfname=fDD,icovfname=icovfname,rpwplist=[rpg,mywp],wpstart=wpstart,wpend=wpend) 
 
+def weightsum(wpinlist,wgtlist,returnstd=False):
+  """
+  returns a new wp instance whose wp values ar ethe weighted sum of hte values in wpinlist.
+  """
+  if len(wpinlist) < 1:
+    return None
+
+  try:
+    wpmean = copy.deepcopy(wpinlist[0].wp)
+    wpstd = copy.deepcopy(wpinlist[0].wp)
+  except:
+    return None
+
+  wpmean = wpmean*wgtlist[0]
+  wpstd = wpmean**2*wgtlist[0]
+  wgtsum = wgtlist[0]
+  for ii in range(1,len(wpinlist)):
+    if len(wpinlist[ii].rsig) != len(wpinlist[0].rsig):
+      return None
+    if len(wpinlist[ii].wp) != len(wpinlist[0].wp):
+      return None
+    if (wpinlist[ii].rsig != wpinlist[0].rsig).any():
+      return None
+    wpmean += wpinlist[ii].wp*wgtlist[ii]
+    wpstd += (wpinlist[ii].wp)**2*wgtlist[ii]
+    wgtsum += wgtlist[ii]
+
+  wpmean = wpmean/float(wgtsum)
+  wpstd = wpstd/float(wgtsum) - wpmean**2
+  wpstd = wpstd**0.5
+  if returnstd is True:
+    return wp(rpwplist=[wpinlist[0].rsig, wpmean]), wpstd
+  else:
+    return wp(rpwplist=[wpinlist[0].rsig, wpmean])
+
+
 if __name__ == "__main__":
 
   wp = wp(wpfname="../boss/bethalexie/data/wpNSmean-dr10_fbworkCHK-nofkp-nocp-smallbins-diagerrs.dat.corr",icovfname="../boss/bethalexie/data/icov-dr10_fbworkCHK-nofkp-nocp-smallbins.dat")
