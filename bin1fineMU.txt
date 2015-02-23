@@ -1,0 +1,11 @@
+#number of rbins to compute, value by which to downsample in mu (so 1 would mean 200/20 = 10 bins in mu remain after sums)
+22 1
+8 1
+8 1
+8 1
+8 1
+4 1
+4 1
+4 1
+4 1
+4 1

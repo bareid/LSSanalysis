@@ -974,6 +974,81 @@ def Planck2fs8camb(pelt, pnames, zhigh = 0.58, zlow = 0.56):
   
   return fs8val
   
+def Planck2fs8cambmany(pelt, pnames, zlist = [0.57], dz = 0.01):
+  if 'mnu' in pnames:
+    print 'assuming here minimal neutrino mass, one mass eigenstate.'
+    sys.exit(1)
+  zlist = np.array(zlist)
+  zlowlist = zlist - dz
+  zhighlist = zlist + dz
+
+  if (zlowlist < 0.).any():
+    print 'avoid z < 0. in zlist - dz!!'
+    return -1
+
+  nz = len(zlowlist) + len(zhighlist) + 1
+
+  if (zlowlist > zhighlist).any():
+    return -1
+
+  if (zlist[:-1] > zlist[1:]).any():
+    print 'input must be ordered from lowest to highest.'
+    return -1
+
+  cfname = 'cambfs8tmpmany.ini'
+  cc = Planck2cosmo(pelt,pnames)
+  #print cc.DofaLCDM(1./1.56), cc.DofaLCDM(1./1.58), cc.dDdlnaLCDM(1./1.57)*pelt['sigma8'], pelt['sigma8']
+  cfp = open(cfname,'w')
+  cfp.write('ombh2 = %e\n' % cc.obh2)
+  cfp.write('omch2 = %e\n' % cc.och2)
+  cfp.write('omnuh2 = %e\n' % cc.onuh2(1.))
+  cfp.write('hubble = %e\n' % (cc.h * 100))
+  cfp.write('scalar_amp(1) = %e\n' % (np.exp(pelt['logA'])*1.e-10))
+  cfp.write('scalar_spectral_index(1) = %e\n' % (pelt['ns']))
+  cfp.write('DEFAULT(bethdefaultfs8.ini)\n')
+  cfp.write('transfer_high_precision = T\n')
+  cfp.write('transfer_kmax           = 2\n')
+  cfp.write('transfer_k_per_logint   = 0\n')
+  cfp.write('transfer_num_redshifts  = %d\n' % nz)
+  cfp.write('transfer_interp_matterpower = T\n')
+  cfp.write('transfer_redshift(%d)    = 0.0\n' % nz)
+  cfp.write('transfer_filename(%d)    = transfer_z0p0.dat\n' % nz)
+  for ii in range(0,len(zlowlist)):
+    n1 = nz - 2*ii - 1
+    n2 = nz - 2*ii - 2
+    cfp.write('transfer_redshift(%d)    = %e\n' % (n1,zlowlist[ii]))
+    cfp.write('transfer_filename(%d)    = transfer_%d.dat\n' % (n1,n1))
+    cfp.write('transfer_redshift(%d)    = %e\n' % (n2,zhighlist[ii]))
+    cfp.write('transfer_filename(%d)    = transfer_%d.dat\n' % (n2,n2))
+  cfp.close() 
+
+  ## now scrape the output.
+  mystr = './camb %s > tmpout' % (cfname)
+  os.system(mystr)
+
+  sig8list = []
+  ifp = open('tmpout','r')
+  for line in ifp:
+    if re.search('^ at z =',line):
+      sig8val = float(line.split('(all matter)=')[-1].strip('\n'))
+      sig8list.append(sig8val)
+  ifp.close()
+  if not len(sig8list) == nz:
+    print sig8list
+  assert len(sig8list) == nz
+  ## check z=0
+  if not np.fabs(sig8list[-1] - pelt['sigma8']) < 0.002:
+    return -1 ## some alignment error.
+  dlnalist = np.log((1.+zhighlist)/(1.+zlowlist))
+  fs8list = []
+  for ii in range(0,len(zlowlist)):
+    n1 = nz - 2*ii - 2
+    n2 = nz - 2*ii - 3
+    fs8list.append((sig8list[n1] - sig8list[n2])/dlnalist[ii])
+  fs8list = np.array(fs8list)
+  return fs8list
+  #fs8val = (sig8list[1] - sig8list[0])/dlna
+  #return fs8val
 
 
 
