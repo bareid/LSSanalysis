@@ -469,6 +469,19 @@ class cosmo:
     myDofa = self.DofaLCDM(a)
     return myDofa/self.DofaLCDM(1.) * (1./(self.normH(a))**2*(-3./2.*self.ocb/a**3-self.ok/a**2 + 5./2.*a/myDofa*self.ocb/a**3))
 
+  def H0tofa(self,a):
+    """
+    Numerically integrate to get t(a) given cosmological parameters.
+    """
+    ## do integral exactly for tiny a, where we can all other contributions to energy density.
+    aeq = (self.og + self.onu(1e-4))/self.ocb
+    asml = 0.001*aeq
+    if a <= asml:
+      return 1./np.sqrt(self.og + self.onu(1e-4))*0.5*a**2
+    i0 = 1./np.sqrt(self.og + self.onu(1e-4))*0.5*asml**2
+    i1, i1err = quad(lambda ap: ap**-1*self.normHinv(ap),asml,a)
+    return i0+i1
+
   def DAz(self,a):
     """ this is in Mpc"""
     # converter to angular diameter distance.
