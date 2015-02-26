@@ -367,7 +367,6 @@ def wpfromDR(fbase,dfacr=1,periodicopt=0,DRfacinfo=None,rpimax=80.,testing=0,ico
     if nrpibins*nrpbins != len(xi):
       return None
 
-    print 'did not test periodic yet!'
   elif xiopt == 1:
     rpg, rpig, xi, xigerr = np.loadtxt(fbase,unpack=True)
     nrpibins = len(np.where(rpg == rpg[0])[0])
